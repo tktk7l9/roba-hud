@@ -33,6 +33,7 @@ enum SelfTest {
         testRoundTrip()
         testEffectiveResolution()
         testLabels()
+        testInference()
         print(failures == 0 ? "selftest OK (\(count) assertions)"
                             : "selftest FAILED: \(failures)/\(count)")
         return failures == 0 ? 0 : 1
@@ -201,5 +202,108 @@ enum SelfTest {
 
         let chord = LabelProvider.label(for: keymap.layers[3].bindings[19].binding, in: keymap)
         expectEqual(chord.tap, "⇧⌘4", "screenshot chord label")
+    }
+
+    // MARK: - Inference engine (fake clock scenarios)
+
+    private static func testInference() {
+        guard let keymap = fixtureKeymap else { return }
+        func at(_ t: TimeInterval) -> Date { Date(timeIntervalSinceReferenceDate: t) }
+        func fresh() -> InferenceEngine { InferenceEngine(keymap: keymap) }
+
+        expectEqual(keymap.mouseLayer, 4, "automouse layer parsed")
+        expectEqual(keymap.scrollLayer, 5, "scroll layer parsed")
+
+        // KP_N7 (0x5F) exists only on NUM → snap to layer 2, light pos 1.
+        var e = fresh()
+        e.handle(.key(page: 7, usage: 0x5F, down: true), at: at(0))
+        expectEqual(e.displayed, 2, "KP_N7 → NUM")
+        expectEqual(e.highlighted, [1], "KP_N7 highlights NUM[1]")
+
+        // ENTER is on BASE and NUM: current layer wins.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x28, down: true), at: at(0))
+        expectEqual(e.displayed, 0, "ENTER stays on BASE")
+        expectEqual(e.highlighted, [21], "ENTER highlights BASE[21]")
+
+        // Held arrow keeps NUM alive indefinitely; decay starts on release.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x50, down: true), at: at(0))    // LEFT
+        expectEqual(e.displayed, 2, "LEFT → NUM")
+        e.tick(at: at(3.0))
+        expectEqual(e.displayed, 2, "held key keeps NUM past decay")
+        e.handle(.key(page: 7, usage: 0x50, down: false), at: at(3.1))
+        e.tick(at: at(3.6))
+        expectEqual(e.displayed, 2, "NUM lingers within layerDecay")
+        e.tick(at: at(4.3))
+        expectEqual(e.displayed, 0, "NUM decays to BASE after release")
+
+        // Trackball motion → MOUSE with 700ms decay.
+        e = fresh()
+        e.handle(.pointerMotion, at: at(0))
+        expectEqual(e.displayed, 4, "motion → MOUSE")
+        e.tick(at: at(0.6))
+        expectEqual(e.displayed, 4, "MOUSE within decay")
+        e.tick(at: at(0.75))
+        expectEqual(e.displayed, 0, "MOUSE decays after 700ms")
+
+        // Scroll → SCROLL with 400ms decay; scroll outranks motion.
+        e = fresh()
+        e.handle(.pointerMotion, at: at(0))
+        e.handle(.scroll, at: at(0.1))
+        expectEqual(e.displayed, 5, "scroll outranks motion")
+        e.tick(at: at(0.45))
+        e.tick(at: at(0.9))
+        expectEqual(e.displayed, 0, "SCROLL decays")
+
+        // MB1 during motion → MOUSE[31]; held button keeps MOUSE (drag).
+        e = fresh()
+        e.handle(.pointerMotion, at: at(0))
+        e.handle(.button(number: 1, down: true), at: at(0.1))
+        expectEqual(e.displayed, 4, "click during motion stays MOUSE")
+        expectEqual(e.highlighted, [31], "MB1 highlights MOUSE[31]")
+        e.tick(at: at(1.5))
+        expectEqual(e.displayed, 4, "held MB1 keeps MOUSE past motion decay")
+        e.handle(.button(number: 1, down: false), at: at(1.6))
+        e.tick(at: at(2.8))
+        expectEqual(e.displayed, 0, "MOUSE decays after drag ends")
+
+        // Implicit-shift suppression: ⇧ down + N5 down within the chord
+        // window = SYMBOL "%": light SYMBOL[0], not the BASE ⇧ hold face.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0xE1, down: true), at: at(0))
+        e.handle(.key(page: 7, usage: 0x22, down: true), at: at(0.01))
+        expectEqual(e.displayed, 1, "PERCENT → SYMBOL")
+        expectEqual(e.highlighted, [0], "PERCENT highlights SYMBOL[0] only")
+
+        // Solo modifier hold commits after the chord window: BASE mt hold face.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0xE0, down: true), at: at(0))    // LCTRL
+        expectEqual(e.highlighted, [], "mod not attributed within chord window")
+        e.tick(at: at(0.05))
+        expectEqual(e.displayed, 0, "solo ⌃ stays BASE")
+        expectEqual(e.highlighted, [40], "⌃ lights かな hold face BASE[40]")
+
+        // Screenshot chord ⌘⇧4 → FUNC[19] (not the ⌃⌘⇧4 at FUNC[32]).
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0xE3, down: true), at: at(0))
+        e.handle(.key(page: 7, usage: 0xE1, down: true), at: at(0.005))
+        e.handle(.key(page: 7, usage: 0x21, down: true), at: at(0.01))
+        expectEqual(e.displayed, 3, "⌘⇧4 → FUNC")
+        expectEqual(e.highlighted, [19], "⌘⇧4 highlights FUNC[19]")
+
+        // Letters snap back to BASE immediately.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x5F, down: true), at: at(0))
+        e.handle(.key(page: 7, usage: 0x5F, down: false), at: at(0.1))
+        e.handle(.key(page: 7, usage: 0x04, down: true), at: at(0.2))  // A
+        expectEqual(e.displayed, 0, "letter snaps BASE")
+
+        // Pin overrides everything.
+        e = fresh()
+        e.pinned = 2
+        e.handle(.pointerMotion, at: at(0))
+        e.handle(.key(page: 7, usage: 0x04, down: true), at: at(0.1))
+        expectEqual(e.displayed, 2, "pin wins over all evidence")
     }
 }

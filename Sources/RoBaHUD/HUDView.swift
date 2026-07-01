@@ -9,12 +9,33 @@ struct HUDView: View {
             if let error = store.loadError {
                 errorBanner(error)
             }
+            if store.hidState == .permissionNeeded {
+                permissionBanner
+            }
             KeyboardView(store: store)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
         }
         .padding(.top, 4)
         .frame(minWidth: 420, minHeight: 220)
+    }
+
+    /// Input Monitoring is granted per code-signing identity; after allowing
+    /// in System Settings the app must be relaunched to pick it up.
+    private var permissionBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "keyboard.badge.exclamationmark")
+            Text("打鍵の可視化には「入力モニタリング」権限が必要です")
+                .font(.system(size: 11))
+            Spacer()
+            Button("設定を開く") { store.openInputMonitoringSettings() }
+                .font(.system(size: 11))
+            Button("再起動") { store.relaunch() }
+                .font(.system(size: 11))
+        }
+        .padding(6)
+        .background(Color.orange.opacity(0.25), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
     }
 
     private var header: some View {
@@ -31,6 +52,7 @@ struct HUDView: View {
                     .help("レイヤー固定中（推定停止）")
             }
             Spacer()
+            connectionDot
             gearMenu
         }
         .padding(.horizontal, 10)
@@ -58,6 +80,13 @@ struct HUDView: View {
         }
         .buttonStyle(.plain)
         .help("クリックで表示、再クリックで固定/解除")
+    }
+
+    private var connectionDot: some View {
+        Circle()
+            .fill(store.deviceConnected ? Color.green : Color.gray.opacity(0.5))
+            .frame(width: 7, height: 7)
+            .help(store.deviceConnected ? "roBa 接続中" : "roBa 未接続")
     }
 
     private var gearMenu: some View {

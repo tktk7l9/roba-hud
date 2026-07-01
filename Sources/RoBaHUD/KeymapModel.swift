@@ -69,6 +69,9 @@ struct Keymap {
     let layers: [Layer]
     let sourceText: String
     let fileURL: URL?
+    /// From &trackball { automouse-layer / scroll-layers } (fallback 4 / 5).
+    let mouseLayer: Int
+    let scrollLayer: Int
 
     /// Resolve &trans down to the base layer so every (layer, position) has a
     /// concrete binding to label and reverse-index.

@@ -13,6 +13,9 @@ enum Main {
                 ? args[idx + 1] : Prefs.keymapURL.path
             exit(ParseCheck.run(path: path))
         }
+        if args.contains("--hid-dump") {
+            exit(HIDDump.run())
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -37,6 +40,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     override init() {
         super.init()
         store.loadAll()
+        store.startMonitoring()
         let hosting = NSHostingView(rootView: HUDView(store: store))
         let panel = HUDPanel(contentView: hosting)
         panel.delegate = self

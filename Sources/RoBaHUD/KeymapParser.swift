@@ -43,7 +43,33 @@ enum KeymapParser {
         guard counts.count == 1 else {
             throw ParseError(message: "レイヤー間で bindings 数が不一致です: \(layers.map { "\($0.name)=\($0.bindings.count)" }.joined(separator: ", "))")
         }
-        return Keymap(layers: layers, sourceText: source, fileURL: fileURL)
+        return Keymap(layers: layers, sourceText: source, fileURL: fileURL,
+                      mouseLayer: intProperty("automouse-layer", in: blanked) ?? 4,
+                      scrollLayer: intProperty("scroll-layers", in: blanked) ?? 5)
+    }
+
+    /// First `name = <N>` int property anywhere in the file (used for the
+    /// &trackball automouse/scroll layer numbers).
+    static func intProperty(_ name: String, in chars: [Character]) -> Int? {
+        let target = Array(name)
+        var i = 0
+        while i + target.count < chars.count {
+            if Array(chars[i..<i + target.count]) == target,
+               i == 0 || !isIdentChar(chars[i - 1]) {
+                var j = i + target.count
+                while j < chars.count, chars[j].isWhitespace || chars[j] == "=" { j += 1 }
+                guard j < chars.count, chars[j] == "<" else { i += 1; continue }
+                var k = j + 1
+                var digits = ""
+                while k < chars.count, chars[k] != ">" {
+                    if chars[k].isNumber { digits.append(chars[k]) }
+                    k += 1
+                }
+                return Int(digits)
+            }
+            i += 1
+        }
+        return nil
     }
 
     // MARK: - Comments
