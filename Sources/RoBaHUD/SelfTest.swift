@@ -34,6 +34,7 @@ enum SelfTest {
         testEffectiveResolution()
         testLabels()
         testInference()
+        testStats()
         print(failures == 0 ? "selftest OK (\(count) assertions)"
                             : "selftest FAILED: \(failures)/\(count)")
         return failures == 0 ? 0 : 1
@@ -305,5 +306,36 @@ enum SelfTest {
         e.handle(.pointerMotion, at: at(0))
         e.handle(.key(page: 7, usage: 0x04, down: true), at: at(0.1))
         expectEqual(e.displayed, 2, "pin wins over all evidence")
+
+        // lastPress reports attributions for stats.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x5F, down: true), at: at(0))
+        expect(e.lastPress?.layer == 2 && e.lastPress?.position == 1, "lastPress set on key down")
+    }
+
+    // MARK: - Stats
+
+    private static func testStats() {
+        var stats = KeyStats()
+        stats.record(layer: 0, position: 21)
+        stats.record(layer: 0, position: 21)
+        stats.record(layer: 2, position: 1)
+        expectEqual(stats.count(layer: 0, position: 21), 2, "count accumulates")
+        expectEqual(stats.total, 3, "total")
+        expectEqual(stats.layerTotals(), [0: 2, 2: 1], "layer totals")
+        expectEqual(stats.top(1).first?.position, 21, "top key")
+
+        expectEqual(stats.heat(layer: 0, position: 21), 1.0, "max key heat == 1")
+        expect(stats.heat(layer: 2, position: 1) > 0 && stats.heat(layer: 2, position: 1) < 1,
+               "lower count heat in (0,1)")
+        expectEqual(stats.heat(layer: 5, position: 0), 0, "unused key heat == 0")
+
+        // JSON round-trip.
+        if let data = try? JSONEncoder().encode(stats),
+           let decoded = try? JSONDecoder().decode(KeyStats.self, from: data) {
+            expectEqual(decoded, stats, "stats JSON round-trip")
+        } else {
+            expect(false, "stats encodes")
+        }
     }
 }

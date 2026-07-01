@@ -30,6 +30,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         controller = PanelController()
     }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated {
+            controller?.store.statsStore.flush()
+        }
+    }
 }
 
 @MainActor

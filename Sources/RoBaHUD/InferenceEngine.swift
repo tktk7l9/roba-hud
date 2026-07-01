@@ -93,6 +93,9 @@ struct InferenceEngine {
     /// Modifiers consumed as part of a chord (suppressed until release).
     private var consumedMods: Set<UInt32> = []
 
+    /// Most recent key-down attribution, for the owner to consume (stats).
+    var lastPress: (layer: Int, position: Int)?
+
     private var lastMotion: Date?
     private var lastScroll: Date?
     /// Layer suggested by the most recent key evidence.
@@ -172,6 +175,7 @@ struct InferenceEngine {
     private mutating func handleKeyDown(page: UInt32, usage: UInt32, at now: Date) {
         guard let chosen = choose(candidates: index.candidates(page: page, usage: usage), at: now) else { return }
         attributions[ReverseIndex.key(page: page, usage: usage)] = (chosen.layer, chosen.position)
+        lastPress = (chosen.layer, chosen.position)
         // Chord attribution: implicit mods of the chosen binding belong to it,
         // not to some standalone modifier key — swallow their pending entries.
         for mod in chosen.implicitModUsages where pendingMods[mod] != nil || downMods.contains(mod) {

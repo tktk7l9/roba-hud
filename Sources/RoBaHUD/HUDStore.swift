@@ -34,6 +34,10 @@ final class HUDStore {
         didSet { Prefs.opacity = opacity }
     }
 
+    let statsStore = StatsStore()
+    var showHeatmap = false
+    var showStatsSheet = false
+
     private var engine: InferenceEngine?
     private var monitor: HIDMonitor?
     private var tickTimer: Timer?
@@ -139,6 +143,10 @@ final class HUDStore {
         }
         guard var engine else { return }
         engine.handle(event, at: Date())
+        if let press = engine.lastPress {
+            statsStore.record(layer: press.layer, position: press.position)
+            engine.lastPress = nil
+        }
         applyEngine(engine)
     }
 

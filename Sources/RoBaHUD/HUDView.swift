@@ -18,6 +18,9 @@ struct HUDView: View {
         }
         .padding(.top, 4)
         .frame(minWidth: 420, minHeight: 220)
+        .sheet(isPresented: $store.showStatsSheet) {
+            StatsSheet(store: store)
+        }
     }
 
     /// Input Monitoring is granted per code-signing identity; after allowing
@@ -92,6 +95,9 @@ struct HUDView: View {
     private var gearMenu: some View {
         Menu {
             Button("キーマップ再読込") { store.loadAll() }
+            Divider()
+            Toggle("ヒートマップ", isOn: $store.showHeatmap)
+            Button("統計…") { store.showStatsSheet = true }
             Divider()
             Picker("不透明度", selection: $store.opacity) {
                 Text("100%").tag(1.0)

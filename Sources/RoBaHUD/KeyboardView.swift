@@ -17,6 +17,9 @@ struct KeyboardView: View {
                     KeyCapView(
                         label: label(for: key.index),
                         highlighted: store.highlighted.contains(key.index),
+                        heat: store.showHeatmap
+                            ? store.statsStore.stats.heat(layer: store.displayedLayer, position: key.index)
+                            : 0,
                         unit: scale
                     )
                     .frame(width: scale * 0.94, height: scale * 0.94)
@@ -50,6 +53,7 @@ struct KeyboardView: View {
 struct KeyCapView: View {
     let label: KeyLabel
     let highlighted: Bool
+    var heat: Double = 0        // 0…1 heatmap intensity (0 = overlay off)
     let unit: CGFloat           // points per key unit, for font scaling
 
     var body: some View {
@@ -79,6 +83,11 @@ struct KeyCapView: View {
 
     private var fillColor: Color {
         if highlighted { return Color.accentColor.opacity(0.85) }
+        if heat > 0 {
+            // Cold blue → warm red, log-scaled upstream.
+            return Color(hue: 0.66 - 0.66 * heat, saturation: 0.75, brightness: 0.9)
+                .opacity(0.25 + 0.6 * heat)
+        }
         return Color(nsColor: .controlBackgroundColor).opacity(label.dimmed ? 0.4 : 0.9)
     }
 }
