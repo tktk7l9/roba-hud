@@ -35,6 +35,8 @@ enum SelfTest {
         testLabels()
         testInference()
         testStats()
+        testEditor()
+        testGHRunParsing()
         print(failures == 0 ? "selftest OK (\(count) assertions)"
                             : "selftest FAILED: \(failures)/\(count)")
         return failures == 0 ? 0 : 1
@@ -337,5 +339,79 @@ enum SelfTest {
         } else {
             expect(false, "stats encodes")
         }
+    }
+
+    // MARK: - Editor (surgical replacement)
+
+    private static func testEditor() {
+        guard let keymap = fixtureKeymap else { return }
+
+        // Grow by 2: the following space run shrinks so &kp W keeps its column.
+        do {
+            let esc = KeyBinding.kp(Keycode(entry: KeycodeTable.byName["ESC"]!))
+            let newSource = try KeymapEditor.replacing(keymap: keymap, layer: 0, position: 0, with: esc)
+            expect(newSource.contains("&kp ESC   &kp W"), "grown token absorbs following spaces")
+
+            // Everything except the edited token must be byte-identical:
+            // splitting on the two variants must yield identical remainders.
+            let strippedOld = Fixtures.keymap.replacingOccurrences(of: "&kp Q     ", with: "")
+            let strippedNew = newSource.replacingOccurrences(of: "&kp ESC   ", with: "")
+            expectEqual(strippedNew, strippedOld, "rest of file untouched on grow")
+        } catch {
+            expect(false, "grow edit throws: \(error)")
+        }
+
+        // Shrink by 8: the following run grows so &kp BACKSPACE keeps its column.
+        do {
+            let del = KeyBinding.kp(Keycode(entry: KeycodeTable.byName["DEL"]!))
+            let newSource = try KeymapEditor.replacing(keymap: keymap, layer: 0, position: 40, with: del)
+            expect(newSource.contains("&kp DEL          &kp BACKSPACE"),
+                   "shrunk token pads following spaces")
+            let reparsed = try KeymapParser.parse(source: newSource)
+            expectEqual(reparsed.layers[0].bindings[40].binding.dtsText, "&kp DEL", "edited slot reparses")
+        } catch {
+            expect(false, "shrink edit throws: \(error)")
+        }
+
+        // A binding whose serialization would corrupt the structure is
+        // rejected by the pre-write re-parse (token splits into two).
+        let corrupt = KeyBinding.opaque(behavior: "kp Q &kp", params: [])
+        expect((try? KeymapEditor.replacing(keymap: keymap, layer: 0, position: 0, with: corrupt)) == nil,
+               "structure-corrupting edit rejected before write")
+
+        // Editing a &trans slot on a higher layer works (common case).
+        do {
+            let f13ish = KeyBinding.kp(Keycode(entry: KeycodeTable.byName["HOME"]!))
+            let newSource = try KeymapEditor.replacing(keymap: keymap, layer: 5, position: 0, with: f13ish)
+            let reparsed = try KeymapParser.parse(source: newSource)
+            expectEqual(reparsed.layers[5].bindings[0].binding.dtsText, "&kp HOME", "trans slot editable")
+        } catch {
+            expect(false, "trans edit throws: \(error)")
+        }
+    }
+
+    // MARK: - gh run list JSON
+
+    private static func testGHRunParsing() {
+        let json = """
+        [
+          {"databaseId": 111, "status": "completed", "conclusion": "success",
+           "headSha": "aaaa000000000000000000000000000000000000"},
+          {"databaseId": 222, "status": "in_progress", "conclusion": null,
+           "headSha": "bbbb000000000000000000000000000000000000"},
+          {"databaseId": 333, "status": "queued", "conclusion": null,
+           "headSha": "cccc000000000000000000000000000000000000"}
+        ]
+        """
+        let done = GitPipeline.matchRun(json: json, sha: "aaaa000000000000000000000000000000000000")
+        expectEqual(done?.databaseId, 111, "matches completed run by sha")
+        expectEqual(done?.conclusion, "success", "conclusion decoded")
+
+        let running = GitPipeline.matchRun(json: json, sha: "bbbb000000000000000000000000000000000000")
+        expectEqual(running?.status, "in_progress", "matches in-progress run")
+        expectEqual(running?.conclusion, nil, "null conclusion decodes as nil")
+
+        expect(GitPipeline.matchRun(json: json, sha: "ffff") == nil, "no match for unknown sha")
+        expect(GitPipeline.matchRun(json: "not json", sha: "aaaa") == nil, "garbage JSON tolerated")
     }
 }

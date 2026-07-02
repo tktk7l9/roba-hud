@@ -20,9 +20,14 @@ struct KeyboardView: View {
                         heat: store.showHeatmap
                             ? store.statsStore.stats.heat(layer: store.displayedLayer, position: key.index)
                             : 0,
+                        editable: store.editMode,
                         unit: scale
                     )
                     .frame(width: scale * 0.94, height: scale * 0.94)
+                    .onTapGesture { tapKey(key.index) }
+                    .popover(isPresented: editingBinding(for: key.index), arrowEdge: .bottom) {
+                        BindingPicker(store: store, position: key.index)
+                    }
                     .rotationEffect(.degrees(key.rotation))
                     .position(x: xOffset + (center.x - bounds.minX) * scale,
                               y: yOffset + (center.y - bounds.minY) * scale)
@@ -30,6 +35,24 @@ struct KeyboardView: View {
             }
         }
         .aspectRatio(bounds.width / bounds.height, contentMode: .fit)
+    }
+
+    private func tapKey(_ position: Int) {
+        guard store.editMode, let keymap = store.keymap else { return }
+        let binding = keymap.layers[store.displayedLayer].bindings[position].binding
+        guard binding.isEditable else {
+            store.statusToast = "このキーはカスタム behavior のため編集できません"
+            NSSound.beep()
+            return
+        }
+        store.editingPosition = position
+    }
+
+    private func editingBinding(for position: Int) -> Binding<Bool> {
+        Binding(
+            get: { store.editingPosition == position },
+            set: { open in if !open, store.editingPosition == position { store.editingPosition = nil } }
+        )
     }
 
     /// Label for a position on the displayed layer. &trans shows the
@@ -54,6 +77,7 @@ struct KeyCapView: View {
     let label: KeyLabel
     let highlighted: Bool
     var heat: Double = 0        // 0…1 heatmap intensity (0 = overlay off)
+    var editable: Bool = false  // edit mode: show clickable affordance
     let unit: CGFloat           // points per key unit, for font scaling
 
     var body: some View {
@@ -61,7 +85,8 @@ struct KeyCapView: View {
             RoundedRectangle(cornerRadius: unit * 0.12)
                 .fill(fillColor)
             RoundedRectangle(cornerRadius: unit * 0.12)
-                .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
+                .strokeBorder(editable ? Color.accentColor.opacity(0.6) : Color.primary.opacity(0.15),
+                              lineWidth: editable ? 1.5 : 1)
             VStack(spacing: unit * 0.02) {
                 Text(label.tap)
                     .font(.system(size: unit * 0.30, weight: .medium))

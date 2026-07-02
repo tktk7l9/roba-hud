@@ -12,6 +12,18 @@ struct HUDView: View {
             if store.hidState == .permissionNeeded {
                 permissionBanner
             }
+            if let editError = store.editError {
+                dismissibleBanner(editError, color: .red) { store.editError = nil }
+            }
+            if let toast = store.statusToast {
+                dismissibleBanner(toast, color: .blue) { store.statusToast = nil }
+            }
+            if store.gitDiff != nil {
+                diffBar
+            }
+            if store.pipelineState != .idle {
+                pipelineRow
+            }
             KeyboardView(store: store)
                 .padding(.horizontal, 10)
                 .padding(.bottom, 10)
@@ -21,6 +33,110 @@ struct HUDView: View {
         .sheet(isPresented: $store.showStatsSheet) {
             StatsSheet(store: store)
         }
+        .sheet(isPresented: $store.showFlashGuide) {
+            FlashGuide(store: store)
+        }
+    }
+
+    // MARK: - Git / pipeline UI
+
+    private var diffBar: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: "pencil.circle.fill").foregroundStyle(.yellow)
+                Text("未コミットのキーマップ変更").font(.system(size: 11))
+                Button(store.showDiffDetail ? "diffを隠す" : "diff") {
+                    store.showDiffDetail.toggle()
+                }
+                .font(.system(size: 10))
+                Spacer()
+                Button("元に戻す", role: .destructive) { store.revertEdits() }
+                    .font(.system(size: 10))
+                Button("Commit & Push") { store.commitAndPush() }
+                    .font(.system(size: 10, weight: .semibold))
+                    .disabled(store.pipelineState.isRunning)
+            }
+            if store.showDiffDetail, let diff = store.gitDiff {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(Array(diff.split(separator: "\n", omittingEmptySubsequences: false).enumerated()),
+                                id: \.offset) { _, line in
+                            Text(String(line))
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(diffColor(String(line)))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+                .frame(maxHeight: 140)
+                .padding(4)
+                .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 4))
+            }
+        }
+        .padding(6)
+        .background(Color.yellow.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
+    }
+
+    private func diffColor(_ line: String) -> Color {
+        if line.hasPrefix("+"), !line.hasPrefix("+++") { return .green }
+        if line.hasPrefix("-"), !line.hasPrefix("---") { return .red }
+        return .secondary
+    }
+
+    private var pipelineRow: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 8) {
+                switch store.pipelineState {
+                case .running(let message):
+                    ProgressView().controlSize(.small)
+                    Text(message).font(.system(size: 11))
+                case .succeeded(let message):
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+                    Text(message).font(.system(size: 11))
+                    Button("書き込みガイド") { store.showFlashGuide = true }
+                        .font(.system(size: 10))
+                case .failed(let message):
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
+                    Text(message).font(.system(size: 11)).lineLimit(2)
+                case .idle:
+                    EmptyView()
+                }
+                Spacer()
+                if !store.pipelineState.isRunning {
+                    Button("閉じる") { store.pipelineState = .idle }
+                        .font(.system(size: 10))
+                }
+            }
+            if !store.pipelineLog.isEmpty {
+                DisclosureGroup {
+                    ScrollView {
+                        Text(store.pipelineLog.joined(separator: "\n\n"))
+                            .font(.system(size: 9, design: .monospaced))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                    }
+                    .frame(maxHeight: 120)
+                } label: {
+                    Text("ログ").font(.system(size: 10))
+                }
+            }
+        }
+        .padding(6)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
+    }
+
+    private func dismissibleBanner(_ message: String, color: Color, dismiss: @escaping () -> Void) -> some View {
+        HStack {
+            Text(message).font(.system(size: 11))
+            Spacer()
+            Button { dismiss() } label: { Image(systemName: "xmark").font(.system(size: 9)) }
+                .buttonStyle(.plain)
+        }
+        .padding(6)
+        .background(color.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
     }
 
     /// Input Monitoring is granted per code-signing identity; after allowing
@@ -98,6 +214,9 @@ struct HUDView: View {
             Divider()
             Toggle("ヒートマップ", isOn: $store.showHeatmap)
             Button("統計…") { store.showStatsSheet = true }
+            Divider()
+            Toggle("編集モード", isOn: $store.editMode)
+            Button("SVG再生成 (draw.yml)") { store.triggerDraw() }
             Divider()
             Picker("不透明度", selection: $store.opacity) {
                 Text("100%").tag(1.0)

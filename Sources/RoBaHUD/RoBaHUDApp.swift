@@ -47,6 +47,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         super.init()
         store.loadAll()
         store.startMonitoring()
+        store.startWatching()
         let hosting = NSHostingView(rootView: HUDView(store: store))
         let panel = HUDPanel(contentView: hosting)
         panel.delegate = self
