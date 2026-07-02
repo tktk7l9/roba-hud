@@ -1,5 +1,7 @@
 # roba-hud
 
+<img src="docs/icon.png" width="96" align="right" alt="RoBaHUD icon">
+
 roBa（ZMK 分割キーボード・右手トラックボール）専用の macOS フローティング HUD。
 
 - **キーマップ表示** — `zmk-config-roBa` の `config/roBa.keymap` / `config/roBa.json` を直接パースし、実配置（親指キーの回転含む）でレイヤー別に描画。常に最前面・全 Spaces / フルスクリーン上でも表示
