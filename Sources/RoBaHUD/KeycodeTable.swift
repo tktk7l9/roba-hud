@@ -184,6 +184,11 @@ enum KeycodeTable {
         for i in 1...12 {
             add(["F\(i)"], 0x07, UInt32(0x3A + i - 1), "F\(i)", .function)
         }
+        // F13–F24 (0x68–0x73). F21+ have no macOS virtual keycode — candidates
+        // for host-invisible layer markers.
+        for i in 13...24 {
+            add(["F\(i)"], 0x07, UInt32(0x68 + i - 13), "F\(i)", .function)
+        }
         add(["PSCRN", "PRINTSCREEN"], 0x07, 0x46, "PrSc", .function)
         add(["INS", "INSERT"], 0x07, 0x49, "Ins", .navigation)
 
