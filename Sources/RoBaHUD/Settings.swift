@@ -29,4 +29,22 @@ enum Prefs {
         }
         set { defaults.set(newValue, forKey: "opacity") }
     }
+
+    static var batteryNotificationsEnabled: Bool {
+        get { defaults.object(forKey: "batteryNotificationsEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "batteryNotificationsEnabled") }
+    }
+
+    static var disconnectNotificationsEnabled: Bool {
+        get { defaults.bool(forKey: "disconnectNotificationsEnabled") }
+        set { defaults.set(newValue, forKey: "disconnectNotificationsEnabled") }
+    }
+
+    static var batteryNotifyThreshold: Int {
+        get {
+            let v = defaults.integer(forKey: "batteryNotifyThreshold")
+            return v == 0 ? 20 : min(max(v, 5), 50)
+        }
+        set { defaults.set(newValue, forKey: "batteryNotifyThreshold") }
+    }
 }

@@ -35,6 +35,7 @@ final class HUDStore {
     }
 
     let statsStore = StatsStore()
+    let battery = BatteryCenter()
     var showHeatmap = false
     var showStatsSheet = false
 

@@ -16,6 +16,9 @@ enum Main {
         if args.contains("--hid-dump") {
             exit(HIDDump.run())
         }
+        if args.contains("--battery-dump") {
+            exit(BatteryDump.run())
+        }
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
@@ -34,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
             controller?.store.statsStore.flush()
+            controller?.store.battery.flush()
         }
     }
 }
@@ -48,6 +52,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         store.loadAll()
         store.startMonitoring()
         store.startWatching()
+        store.battery.start()
         let hosting = NSHostingView(rootView: HUDView(store: store))
         let panel = HUDPanel(contentView: hosting)
         panel.delegate = self

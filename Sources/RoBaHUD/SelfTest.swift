@@ -37,6 +37,7 @@ enum SelfTest {
         testStats()
         testEditor()
         testGHRunParsing()
+        testBatteryModel()
         print(failures == 0 ? "selftest OK (\(count) assertions)"
                             : "selftest FAILED: \(failures)/\(count)")
         return failures == 0 ? 0 : 1
@@ -413,5 +414,70 @@ enum SelfTest {
 
         expect(GitPipeline.matchRun(json: json, sha: "ffff") == nil, "no match for unknown sha")
         expect(GitPipeline.matchRun(json: "not json", sha: "aaaa") == nil, "garbage JSON tolerated")
+    }
+
+    // MARK: - Battery model
+
+    private static func testBatteryModel() {
+        // CUD → role mapping (ZMK central_bas_proxy.c labels).
+        expectEqual(BatteryRole.from(cud: nil), .central, "no CUD → central")
+        expectEqual(BatteryRole.from(cud: "Peripheral 0"), .peripheral(0), "CUD Peripheral 0")
+        expectEqual(BatteryRole.from(cud: "Peripheral 1"), .peripheral(1), "CUD Peripheral 1")
+        expectEqual(BatteryRole.from(cud: "garbage"), .central, "unknown CUD → central")
+        expectEqual(BatteryRole.central.displayName, "右", "central = 右 (roBa central is right half)")
+        expectEqual(BatteryRole.peripheral(0).displayName, "左", "peripheral 0 = 左")
+
+        expectEqual(BatterySeverity.of(level: 55), .ok, "severity ok")
+        expectEqual(BatterySeverity.of(level: 20), .low, "severity low at 20")
+        expectEqual(BatterySeverity.of(level: 10), .critical, "severity critical at 10")
+
+        // Notification policy: fire once on crossing, re-arm above threshold+hysteresis.
+        var policy = BatteryNotificationPolicy()
+        policy.threshold = 20
+        policy.hysteresis = 5
+        expect(!policy.shouldNotify(role: .central, level: 50), "no notify at 50")
+        expect(policy.shouldNotify(role: .central, level: 19), "notify on crossing 20")
+        expect(!policy.shouldNotify(role: .central, level: 18), "no refire while low")
+        expect(!policy.shouldNotify(role: .central, level: 22), "no re-arm inside hysteresis band")
+        expect(!policy.shouldNotify(role: .central, level: 18), "still fired inside band")
+        expect(!policy.shouldNotify(role: .central, level: 80), "recharge above band re-arms silently")
+        expect(policy.shouldNotify(role: .central, level: 15), "refires after re-arm")
+        expect(policy.shouldNotify(role: .peripheral(0), level: 10), "roles tracked independently")
+
+        // History: dedupe, prune, series, roles.
+        func at(_ t: TimeInterval) -> Date { Date(timeIntervalSinceReferenceDate: t) }
+        var history = BatteryHistory()
+        history.append(levels: ["central": 90], at: at(0))
+        history.append(levels: ["central": 90], at: at(60))          // duplicate → dropped
+        history.append(levels: ["central": 90, "peripheral0": 80], at: at(120))
+        expectEqual(history.samples.count, 2, "duplicate sample deduped")
+
+        history.retentionDays = 1
+        history.append(levels: ["central": 85, "peripheral0": 80], at: at(2 * 86400))
+        expectEqual(history.samples.count, 1, "old samples pruned")
+
+        history = BatteryHistory()
+        history.append(levels: ["central": 90], at: at(0))
+        history.append(levels: ["central": 80, "peripheral0": 70], at: at(3600))
+        let series = history.series(role: .central, days: 1, now: at(3600))
+        expectEqual(series.map(\.level), [90, 80], "series levels in order")
+        expectEqual(history.series(role: .peripheral(0), days: 1, now: at(3600)).map(\.level), [70],
+                    "peripheral series only where present")
+        expectEqual(history.knownRoles, [.central, .peripheral(0)], "known roles central-first")
+
+        // Codable round-trip.
+        if let data = try? JSONEncoder().encode(history),
+           let decoded = try? JSONDecoder().decode(BatteryHistory.self, from: data) {
+            expectEqual(decoded, history, "battery history JSON round-trip")
+        } else {
+            expect(false, "battery history encodes")
+        }
+
+        // Levels clamp + update.
+        var levels = BatteryLevels()
+        levels.set(role: .central, level: 150, at: at(0))
+        expectEqual(levels.level(of: .central), 100, "level clamped to 100")
+        levels.set(role: .peripheral(0), level: -5, at: at(1))
+        expectEqual(levels.level(of: .peripheral(0)), 0, "level clamped to 0")
     }
 }

@@ -22,6 +22,8 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>roBa の左右バッテリー残量を読み取るために Bluetooth を使用します。</string>
     <key>NSHumanReadableCopyright</key>
     <string>Personal tool for the roBa keyboard.</string>
 </dict>

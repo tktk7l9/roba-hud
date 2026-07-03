@@ -36,6 +36,12 @@ struct HUDView: View {
         .sheet(isPresented: $store.showFlashGuide) {
             FlashGuide(store: store)
         }
+        .sheet(isPresented: Binding(
+            get: { store.battery.showSheet },
+            set: { store.battery.showSheet = $0 }
+        )) {
+            BatterySheet(battery: store.battery)
+        }
     }
 
     // MARK: - Git / pipeline UI
@@ -171,6 +177,7 @@ struct HUDView: View {
                     .help("レイヤー固定中（推定停止）")
             }
             Spacer()
+            BatteryChips(battery: store.battery)
             connectionDot
             gearMenu
         }
@@ -214,6 +221,7 @@ struct HUDView: View {
             Divider()
             Toggle("ヒートマップ", isOn: $store.showHeatmap)
             Button("統計…") { store.showStatsSheet = true }
+            Button("バッテリー…") { store.battery.showSheet = true }
             Divider()
             Toggle("編集モード", isOn: $store.editMode)
             Button("SVG再生成 (draw.yml)") { store.triggerDraw() }
