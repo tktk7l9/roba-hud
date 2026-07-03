@@ -46,6 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class PanelController: NSObject, NSWindowDelegate {
     let store = HUDStore()
     private var panel: HUDPanel?
+    private var batteryStatusItem: BatteryStatusItem?
 
     override init() {
         super.init()
@@ -61,6 +62,12 @@ final class PanelController: NSObject, NSWindowDelegate {
         // center() above only matters on first launch.
         panel.orderFrontRegardless()
         self.panel = panel
+        batteryStatusItem = BatteryStatusItem(
+            battery: store.battery,
+            showPanel: { [weak self] in self?.panel?.orderFrontRegardless() },
+            hidePanel: { [weak self] in self?.panel?.orderOut(nil) },
+            isPanelVisible: { [weak self] in self?.panel?.isVisible ?? false }
+        )
         observeOpacity()
     }
 
@@ -77,7 +84,17 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
     }
 
-    // The HUD is the app's only surface: closing it quits.
+    // With the menu-bar battery item installed, closing the panel just hides
+    // it (the app stays reachable from the menu bar). Without it, the HUD is
+    // the only surface, so closing quits as before.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if batteryStatusItem?.isInstalled == true {
+            sender.orderOut(nil)
+            return false
+        }
+        return true
+    }
+
     func windowWillClose(_ notification: Notification) {
         NSApp.terminate(nil)
     }

@@ -479,5 +479,16 @@ enum SelfTest {
         expectEqual(levels.level(of: .central), 100, "level clamped to 100")
         levels.set(role: .peripheral(0), level: -5, at: at(1))
         expectEqual(levels.level(of: .peripheral(0)), 0, "level clamped to 0")
+
+        // Menu bar label lines (R = central/right, L = peripheral/left).
+        var mb = BatteryLevels()
+        expectEqual(BatteryMenuBarLabel.lines(levels: mb),
+                    [.init(text: "R\t–", severity: nil), .init(text: "L\t–", severity: nil)],
+                    "menu bar shows – when unknown")
+        mb.set(role: .central, level: 85, at: at(0))
+        mb.set(role: .peripheral(0), level: 15, at: at(0))
+        expectEqual(BatteryMenuBarLabel.lines(levels: mb),
+                    [.init(text: "R\t85%", severity: .ok), .init(text: "L\t15%", severity: .low)],
+                    "menu bar lines carry per-line severity")
     }
 }

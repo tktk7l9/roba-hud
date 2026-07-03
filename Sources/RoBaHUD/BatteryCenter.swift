@@ -32,6 +32,9 @@ final class BatteryCenter {
             policy.threshold = threshold
         }
     }
+    var menuBarEnabled: Bool = Prefs.menuBarBatteryEnabled {
+        didSet { Prefs.menuBarBatteryEnabled = menuBarEnabled }
+    }
 
     @ObservationIgnored private var policy = BatteryNotificationPolicy()
     @ObservationIgnored private let monitor = BatteryMonitor()

@@ -108,6 +108,7 @@ struct BatterySheet: View {
                     .disabled(!battery.notificationsEnabled)
                 }
                 Toggle("接続/切断を通知", isOn: $battery.disconnectNotificationsEnabled)
+                Toggle("メニューバーに残量を表示", isOn: $battery.menuBarEnabled)
                 if LoginItem.available {
                     Toggle("ログイン時に起動", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { _, on in LoginItem.set(on) }

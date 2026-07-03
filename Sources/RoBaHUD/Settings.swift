@@ -40,6 +40,11 @@ enum Prefs {
         set { defaults.set(newValue, forKey: "disconnectNotificationsEnabled") }
     }
 
+    static var menuBarBatteryEnabled: Bool {
+        get { defaults.object(forKey: "menuBarBatteryEnabled") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "menuBarBatteryEnabled") }
+    }
+
     static var batteryNotifyThreshold: Int {
         get {
             let v = defaults.integer(forKey: "batteryNotifyThreshold")
