@@ -13,6 +13,11 @@ struct ParseError: Error, CustomStringConvertible {
 /// on the blanked Character array; recorded ranges index into the original.
 enum KeymapParser {
 
+    /// Marker-emitting custom behaviors defined in zmk-config-roBa
+    /// (paired with the F21–F24 layer markers; see InferenceEngine.layerMarkers).
+    static let markerLayerTaps: [String: Int] = ["ltm1": 1, "ltm2": 2, "ltm3": 3, "ltm5": 5]
+    static let markerMomentaries: [String: Int] = ["mkr_l1": 1, "mkr_l2": 2, "mkr_l3": 3, "mkr_l5": 5]
+
     static func parse(source: String, fileURL: URL? = nil) throws -> Keymap {
         let chars = Array(source)
         let blanked = blankComments(chars)
@@ -329,6 +334,15 @@ enum KeymapParser {
         case "sys_reset":
             return .sysReset
         default:
+            if let layer = Self.markerLayerTaps[behavior] {
+                guard params.count == 2, params[0] == "0",
+                      let tap = KeycodeTable.parseExpression(params[1]) else { return opaque() }
+                return .customLt(name: behavior, layer: layer, tap: tap)
+            }
+            if let layer = Self.markerMomentaries[behavior] {
+                guard params.isEmpty else { return opaque() }
+                return .customMo(name: behavior, layer: layer)
+            }
             return opaque()
         }
     }

@@ -11,9 +11,9 @@ enum CheatsheetGenerator {
     static func shortLabel(_ binding: KeyBinding) -> String {
         switch binding {
         case .kp(let code): code.label
-        case .lt(_, let tap): tap.label + "*"
+        case .lt(_, let tap), .customLt(_, _, let tap): tap.label + "*"
         case .mt(_, let tap): tap.label + "*"
-        case .mo(let n): "▷\(n)"
+        case .mo(let n), .customMo(_, let n): "▷\(n)"
         case .to(let n): "→\(n)"
         case .tog(let n): "⇄\(n)"
         case .mkp(let n): "M\(n)"

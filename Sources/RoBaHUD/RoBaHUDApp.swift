@@ -184,11 +184,11 @@ enum ParseCheck {
             let keymap = try KeymapParser.parse(source: source)
             print("OK: \(path)")
             for layer in keymap.layers {
-                let opaques = layer.bindings.filter { !$0.binding.isEditable }.count
+                let locked = layer.bindings.filter { !$0.binding.isEditable }.count
                 print(String(format: "  L%d %-8s %d bindings%@",
                              layer.index, (layer.name as NSString).utf8String!,
                              layer.bindings.count,
-                             opaques > 0 ? " (opaque: \(opaques))" : ""))
+                             locked > 0 ? " (編集不可: \(locked))" : ""))
             }
             return 0
         } catch {

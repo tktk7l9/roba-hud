@@ -8,6 +8,11 @@ enum KeyBinding: Equatable {
     case mo(Int)
     case to(Int)
     case tog(Int)
+    /// Marker-emitting layer-tap (custom hold-tap ltmN in zmk-config):
+    /// "&ltm2 0 SPACE" — tap = keycode, hold = mo(layer) + F2x marker.
+    case customLt(name: String, layer: Int, tap: Keycode)
+    /// Marker-emitting momentary (macro mkr_lN): "&mkr_l5".
+    case customMo(name: String, layer: Int)
     case mkp(Int)                       // mouse button 1...5
     case bt(command: String, param: Int?)
     case out(String)
@@ -31,6 +36,8 @@ enum KeyBinding: Equatable {
         case .mo(let n): "&mo \(n)"
         case .to(let n): "&to \(n)"
         case .tog(let n): "&tog \(n)"
+        case .customLt(let name, _, let tap): "&\(name) 0 \(tap.dtsText)"
+        case .customMo(let name, _): "&\(name)"
         case .mkp(let n): "&mkp MB\(n)"
         case .bt(let cmd, let param): param.map { "&bt \(cmd) \($0)" } ?? "&bt \(cmd)"
         case .out(let s): "&out \(s)"
@@ -45,8 +52,10 @@ enum KeyBinding: Equatable {
     }
 
     var isEditable: Bool {
-        if case .opaque = self { return false }
-        return true
+        switch self {
+        case .opaque, .customLt, .customMo: false   // picker would drop the marker
+        default: true
+        }
     }
 }
 
@@ -112,6 +121,10 @@ enum LabelProvider {
             return KeyLabel(tap.label, hold: "▷\(layerName(layer))")
         case .mt(let hold, let tap):
             return KeyLabel(tap.label, hold: hold.label)
+        case .customLt(_, let layer, let tap):
+            return KeyLabel(tap.label, hold: "▷\(layerName(layer))")
+        case .customMo(_, let layer):
+            return KeyLabel("▷\(layerName(layer))")
         case .mo(let n):
             return KeyLabel("▷\(layerName(n))")
         case .to(let n):

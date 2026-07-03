@@ -113,10 +113,11 @@ enum SelfTest {
 
         let l0 = keymap.layers[0].bindings
         expectEqual(l0[0].binding.dtsText, "&kp Q", "L0[0]")
-        if case .lt(let layer, let tap) = l0[39].binding {
-            expectEqual(layer, 5, "L0[39] lt layer")
-            expectEqual(tap.nameUsed, "LANG2", "L0[39] lt tap")
-        } else { expect(false, "L0[39] is lt") }
+        if case .customLt(let name, let layer, let tap) = l0[39].binding {
+            expectEqual(name, "ltm5", "L0[39] marker lt name")
+            expectEqual(layer, 5, "L0[39] marker lt layer")
+            expectEqual(tap.nameUsed, "LANG2", "L0[39] marker lt tap")
+        } else { expect(false, "L0[39] is customLt") }
         if case .mt(let hold, let tap) = l0[40].binding {
             expectEqual(hold.nameUsed, "LCTRL", "L0[40] mt hold")
             expectEqual(tap.nameUsed, "LANG1", "L0[40] mt tap")
@@ -124,9 +125,11 @@ enum SelfTest {
         if case .mkp(let n) = l0[16].binding {
             expectEqual(n, 3, "L0[16] middle click")
         } else { expect(false, "L0[16] is mkp") }
-        if case .mo(let n) = l0[15].binding {
-            expectEqual(n, 5, "L0[15] mo 5")
-        } else { expect(false, "L0[15] is mo") }
+        if case .customMo(let name, let layer) = l0[15].binding {
+            expectEqual(name, "mkr_l5", "L0[15] marker mo name")
+            expectEqual(layer, 5, "L0[15] marker mo layer")
+        } else { expect(false, "L0[15] is customMo") }
+        expectEqual(l0[37].binding.dtsText, "&ltm1 0 TAB", "L0[37] marker lt serialization")
 
         let l2 = keymap.layers[2].bindings
         expectEqual(l2[1].binding.dtsText, "&kp KP_NUMBER_7", "NUM alias preserved")
@@ -317,6 +320,45 @@ enum SelfTest {
         e = fresh()
         e.handle(.key(page: 7, usage: 0x5F, down: true), at: at(0))
         expect(e.lastPress?.layer == 2 && e.lastPress?.position == 1, "lastPress set on key down")
+
+        // ── Layer markers (F21–F24 = firmware ground truth) ──
+        // F22 down → NUM instantly, no highlight/stats from the marker itself.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x71, down: true), at: at(0))
+        expectEqual(e.displayed, 2, "F22 marker → NUM instantly")
+        expectEqual(e.highlighted, [], "marker creates no highlight")
+        expect(e.lastPress == nil, "marker creates no stats press")
+
+        // Keys during the hold attribute to the marker layer.
+        e.handle(.key(page: 7, usage: 0x50, down: true), at: at(0.1))   // LEFT
+        expectEqual(e.highlighted, [18], "key during marker hold highlights NUM slot")
+        e.handle(.key(page: 7, usage: 0x50, down: false), at: at(0.2))
+
+        // Marker release → BASE instantly, softer evidence dropped too.
+        e.handle(.key(page: 7, usage: 0x71, down: false), at: at(0.3))
+        expectEqual(e.displayed, 0, "marker release returns to BASE with no decay")
+
+        // Nested markers: most recent wins, releases unwind.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x71, down: true), at: at(0))    // NUM
+        e.handle(.key(page: 7, usage: 0x72, down: true), at: at(0.2))  // FUNC (mo 3 on NUM)
+        expectEqual(e.displayed, 3, "nested marker shows inner layer")
+        e.handle(.key(page: 7, usage: 0x72, down: false), at: at(0.4))
+        expectEqual(e.displayed, 2, "inner release falls back to outer marker")
+        e.handle(.key(page: 7, usage: 0x71, down: false), at: at(0.5))
+        expectEqual(e.displayed, 0, "outer release returns to BASE")
+
+        // Automouse outranks a held marker (matches firmware layering),
+        // and the marker resurfaces after motion decays.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0x71, down: true), at: at(0))
+        e.handle(.pointerMotion, at: at(0.1))
+        expectEqual(e.displayed, 4, "motion outranks marker while moving")
+        e.tick(at: at(1.0))
+        expectEqual(e.displayed, 2, "marker resurfaces after motion decay")
+        e.handle(.key(page: 7, usage: 0x71, down: false), at: at(1.1))
+        e.tick(at: at(1.2))
+        expectEqual(e.displayed, 0, "marker gone after release")
     }
 
     // MARK: - Stats
@@ -645,6 +687,26 @@ enum SelfTest {
         func at(_ t: TimeInterval) -> Date { Date(timeIntervalSinceReferenceDate: t) }
 
         // KeymapModel: serialization + labels for kinds absent from the fixture.
+        let lang2 = Keycode(entry: KeycodeTable.byName["LANG2"]!)
+        expectEqual(KeyBinding.lt(layer: 5, tap: lang2).dtsText, "&lt 5 LANG2", "plain lt serialization")
+        expectEqual(KeyBinding.mo(5).dtsText, "&mo 5", "plain mo serialization")
+        expectEqual(KeyBinding.none.dtsText, "&none", "none serialization")
+        let plainLt = LabelProvider.label(for: .lt(layer: 5, tap: lang2), in: keymap)
+        expect(plainLt.tap == "英数" && plainLt.hold == "▷SCROLL", "plain lt label")
+        expectEqual(LabelProvider.label(for: .bt(command: "BT_SEL", param: nil), in: keymap).tap,
+                    "BT_SEL", "bt sel without param label")
+        expectEqual(LabelProvider.label(for: .opaque(behavior: "bt_clr_hold", params: ["0", "0"]),
+                                        in: keymap).hold, "BT✕", "bt_clr_hold label")
+        if case .opaque = try! KeymapParser.interpret(token: "&lt 2 NOKEY") {}
+        else { expect(false, "lt bad tap → opaque") }
+        if case .opaque = try! KeymapParser.interpret(token: "&mo 1 2") {}
+        else { expect(false, "mo arity → opaque") }
+        if case .lt(let pl, let pt) = try! KeymapParser.interpret(token: "&lt 1 TAB") {
+            expect(pl == 1 && pt.nameUsed == "TAB", "plain lt parses")
+        } else { expect(false, "&lt 1 TAB parses") }
+        if case .mo(let pm) = try! KeymapParser.interpret(token: "&mo 4") {
+            expectEqual(pm, 4, "plain mo parses")
+        } else { expect(false, "&mo 4 parses") }
         expectEqual(KeyBinding.tog(2).dtsText, "&tog 2", "tog serialization")
         expectEqual(KeyBinding.bt(command: "BT_CLR", param: nil).dtsText, "&bt BT_CLR", "bt no-param serialization")
         expectEqual(LabelProvider.label(for: .tog(2), in: keymap).tap, "⇄NUM", "tog label uses layer name")
@@ -823,6 +885,19 @@ enum SelfTest {
         else { expect(false, "&none parses") }
         if case .opaque = try! KeymapParser.interpret(token: "&tog x") {}
         else { expect(false, "tog non-int → opaque") }
+
+        // Marker behavior parsing guards.
+        if case .opaque = try! KeymapParser.interpret(token: "&ltm2 1 SPACE") {}
+        else { expect(false, "marker lt with non-zero dummy → opaque") }
+        if case .opaque = try! KeymapParser.interpret(token: "&ltm2 0 NOKEY") {}
+        else { expect(false, "marker lt with unknown tap → opaque") }
+        if case .opaque = try! KeymapParser.interpret(token: "&mkr_l5 1") {}
+        else { expect(false, "marker mo with params → opaque") }
+        expect(!KeyBinding.customLt(name: "ltm1", layer: 1,
+                                    tap: Keycode(entry: KeycodeTable.byName["TAB"]!)).isEditable,
+               "marker lt not editable via picker")
+        expectEqual(LabelProvider.label(for: keymap.layers[0].bindings[15].binding, in: keymap).tap,
+                    "▷SCROLL", "marker mo label")
 
         // Labels reached only via the UI path elsewhere.
         expectEqual(LabelProvider.label(for: .to(0), in: keymap).tap, "→BASE", "to label")

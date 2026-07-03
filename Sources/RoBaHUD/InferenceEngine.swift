@@ -50,7 +50,7 @@ struct ReverseIndex {
                 switch parsed.binding {
                 case .kp(let code):
                     addKeycode(code, layer: layer.index, position: position, isHold: false)
-                case .lt(_, let tap):
+                case .lt(_, let tap), .customLt(_, _, let tap):
                     addKeycode(tap, layer: layer.index, position: position, isHold: false)
                 case .mt(let hold, let tap):
                     addKeycode(tap, layer: layer.index, position: position, isHold: false)
@@ -75,6 +75,13 @@ struct ReverseIndex {
 /// per-position highlights out. No timers of its own — the owner calls
 /// `tick(at:)` while `needsTick` is true.
 struct InferenceEngine {
+    /// Firmware layer markers: the custom hold behaviors (ltmN / mkr_lN in
+    /// zmk-config-roBa) hold an F21–F24 usage down for exactly the duration
+    /// of the layer hold. macOS has no virtual keycode for F21+, so these
+    /// reach the raw-HID subscription but are invisible to every app —
+    /// ground truth instead of heuristics for held layers.
+    static let layerMarkers: [UInt32: Int] = [0x70: 1, 0x71: 2, 0x72: 3, 0x73: 5]
+
     var tuning = InferenceTuning()
     /// While set, the displayed layer never changes (manual pin).
     var pinned: Int?
@@ -94,6 +101,9 @@ struct InferenceEngine {
 
     /// Most recent key-down attribution, for the owner to consume (stats).
     var lastPress: (layer: Int, position: Int)?
+
+    /// Marker usages currently held, in press order (last = active layer).
+    private var markerDowns: [(usage: UInt32, layer: Int)] = []
 
     private var lastMotion: Date?
     private var lastScroll: Date?
@@ -130,7 +140,9 @@ struct InferenceEngine {
     mutating func handle(_ event: HIDEvent, at now: Date) {
         switch event {
         case .key(let page, let usage, let down):
-            if page == 0x07, (0xE0...0xE7).contains(usage) {
+            if page == 0x07, let markerLayer = Self.layerMarkers[usage] {
+                handleMarker(usage: usage, layer: markerLayer, down: down)
+            } else if page == 0x07, (0xE0...0xE7).contains(usage) {
                 handleModifier(usage: usage, down: down, at: now)
             } else if down {
                 handleKeyDown(page: page, usage: usage, at: now)
@@ -193,6 +205,22 @@ struct InferenceEngine {
         }
     }
 
+    /// Ground-truth layer hold from the firmware. No attribution, no stats —
+    /// markers exist purely to drive the displayed layer.
+    private mutating func handleMarker(usage: UInt32, layer: Int, down: Bool) {
+        if down {
+            markerDowns.append((usage, layer))
+        } else {
+            markerDowns.removeAll { $0.usage == usage }
+            // The layer is now off in firmware (usage↔layer is 1:1): drop
+            // softer evidence that would keep it displayed through the decay.
+            if keyLayer == layer {
+                keyLayer = 0
+                keyEvidenceUntil = nil
+            }
+        }
+    }
+
     private mutating func handleModifier(usage: UInt32, down: Bool, at now: Date) {
         if down {
             downMods.insert(usage)
@@ -234,12 +262,15 @@ struct InferenceEngine {
 
     // MARK: - Displayed layer
 
-    /// What the display *should* be right now, from current evidence.
-    /// Priority: pin > scroll stream > pointer stream > key evidence > base.
+    /// What the display *should* be right now.
+    /// Priority: pin > scroll stream > pointer stream (automouse overrides a
+    /// held layer in firmware too) > layer marker (ground truth) > key
+    /// evidence > base.
     private func effectiveDisplayed(at now: Date) -> Int {
         if let pinned { return pinned }
         if let ls = lastScroll, now.timeIntervalSince(ls) <= tuning.scrollDecay { return scrollLayer }
         if let lm = lastMotion, now.timeIntervalSince(lm) <= tuning.mouseDecay { return mouseLayer }
+        if let marker = markerDowns.last { return marker.layer }
         if keyLayer != 0 {
             if attributions.values.contains(where: { $0.layer == keyLayer }) { return keyLayer }
             if let until = keyEvidenceUntil, now < until { return keyLayer }

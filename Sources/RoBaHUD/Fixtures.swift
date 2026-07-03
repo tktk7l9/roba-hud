@@ -42,6 +42,42 @@ enum Fixtures {
             tapping-term-ms = <500>;
             bindings = <&bt_clr_macro>, <&none>;
         };
+
+        // マーカー付きレイヤータップ (&lt 互換・第1パラメータはダミー 0)。
+        // 使い方: &ltm2 0 SPACE = タップで Space / ホールドで NUM + F22 マーカー。
+        // フレーバー/タイミングは従来の &lt 設定と同値。
+        ltm1: ltm1 {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&mkr_l1>, <&kp>;
+        };
+        ltm2: ltm2 {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&mkr_l2>, <&kp>;
+        };
+        ltm3: ltm3 {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&mkr_l3>, <&kp>;
+        };
+        ltm5: ltm5 {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            flavor = "balanced";
+            tapping-term-ms = <200>;
+            quick-tap-ms = <175>;
+            bindings = <&mkr_l5>, <&kp>;
+        };
     };
 
     macros {
@@ -49,6 +85,47 @@ enum Fixtures {
             compatible = "zmk,behavior-macro";
             #binding-cells = <0>;
             bindings = <&bt BT_CLR>;
+        };
+
+        // レイヤーマーカー: レイヤーを有効化しつつ F21-F24 をホールド区間だけ押す。
+        // F21+ は macOS に仮想キーコードが無く OS からは不可視。roba-hud だけが
+        // 生 HID (IOHIDManager) で受信し、表示レイヤーの正確な切替に使う。
+        // 対応表: F21=SYMBOL(1) / F22=NUM(2) / F23=FUNC(3) / F24=SCROLL(5)
+        mkr_l1: mkr_l1 {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mo 1 &kp F21>,
+                       <&macro_pause_for_release>,
+                       <&macro_release &mo 1 &kp F21>;
+        };
+        mkr_l2: mkr_l2 {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mo 2 &kp F22>,
+                       <&macro_pause_for_release>,
+                       <&macro_release &mo 2 &kp F22>;
+        };
+        mkr_l3: mkr_l3 {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mo 3 &kp F23>,
+                       <&macro_pause_for_release>,
+                       <&macro_release &mo 3 &kp F23>;
+        };
+        mkr_l5: mkr_l5 {
+            compatible = "zmk,behavior-macro";
+            #binding-cells = <0>;
+            wait-ms = <0>;
+            tap-ms = <0>;
+            bindings = <&macro_press &mo 5 &kp F24>,
+                       <&macro_pause_for_release>,
+                       <&macro_release &mo 5 &kp F24>;
         };
     };
 
@@ -59,9 +136,9 @@ enum Fixtures {
             display-name = "BASE";
             bindings = <
 &kp Q     &kp W     &kp E     &kp R          &kp T                                          &kp Y               &kp U          &kp I      &kp O     &kp P
-&kp A     &kp S     &kp D     &kp F          &kp G       &mo 5                  &mkp MB3     &kp H               &kp J          &kp K      &kp L     &kp ENTER
+&kp A     &kp S     &kp D     &kp F          &kp G       &mkr_l5                &mkp MB3     &kp H               &kp J          &kp K      &kp L     &kp ENTER
 &kp Z     &kp X     &kp C     &kp V          &kp B       &kp DEL                &caps_word   &kp N               &kp M          &mkp MB1  &mkp MB2  &mt LSHFT MINUS
-&kp LGUI  &kp COMMA &kp DOT   &lt 1 TAB      &lt 2 SPACE &lt 5 LANG2            &mt LCTRL LANG1  &kp BACKSPACE                                       &lt 3 ESC
+&kp LGUI  &kp COMMA &kp DOT   &ltm1 0 TAB    &ltm2 0 SPACE &ltm5 0 LANG2        &mt LCTRL LANG1  &kp BACKSPACE                                       &ltm3 0 ESC
             >;
 
             sensor-bindings = <&inc_dec_kp PG_UP PAGE_DOWN>;
@@ -83,7 +160,7 @@ enum Fixtures {
 &to 0            &kp KP_NUMBER_7  &kp KP_NUMBER_8  &kp KP_NUMBER_9  &kp KP_DIVIDE                       &kp ENTER       &kp HOME        &kp UP_ARROW    &kp END          &kp LALT
 &kp KP_NUMBER_0  &kp KP_NUMBER_4  &kp KP_NUMBER_5  &kp KP_NUMBER_6  &kp KP_MULTIPLY  &kp KP_MINUS  &trans     &kp PG_UP       &kp LEFT_ARROW  &kp DOWN_ARROW  &kp RIGHT_ARROW  &kp PG_DN
 &kp KP_DOT       &kp KP_NUMBER_1  &kp KP_NUMBER_2  &kp KP_NUMBER_3  &kp LSHFT        &kp KP_PLUS   &trans     &kp LA(LEFT)    &kp LA(RIGHT)   &mkp MB1       &mkp MB2         &mkp MB3
-&kp LGUI         &trans           &trans           &trans           &trans           &trans        &kp LCTRL  &kp DEL                                                          &mo 3
+&kp LGUI         &trans           &trans           &trans           &trans           &trans        &kp LCTRL  &kp DEL                                                          &mkr_l3
             >;
         };
 
