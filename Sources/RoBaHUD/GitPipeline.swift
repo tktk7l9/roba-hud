@@ -65,8 +65,15 @@ enum ExternalTool {
 struct GitPipeline {
     let repoPath: String
     static let keymapRelPath = "config/roBa.keymap"
+    static let cheatsheetRelPath = "CHEATSHEET.md"
+    /// Files this app owns in the zmk-config repo (edited + committed together).
+    static let managedPaths = [keymapRelPath, cheatsheetRelPath]
 
     private func git(_ args: String...) async -> CommandResult {
+        await git(args)
+    }
+
+    private func git(_ args: [String]) async -> CommandResult {
         await ExternalTool.run(["git", "-C", repoPath] + args)
     }
 
@@ -77,21 +84,23 @@ struct GitPipeline {
     // MARK: - Local state
 
     func keymapDiff() async -> String {
-        let result = await git("diff", "--no-color", "--", Self.keymapRelPath)
+        let result = await git(["diff", "--no-color", "--"] + Self.managedPaths)
         return result.ok ? result.stdout : result.display
     }
 
     func restoreKeymap() async -> CommandResult {
-        await git("restore", "--", Self.keymapRelPath)
+        await git(["restore", "--"] + Self.managedPaths)
     }
 
-    /// Non-keymap dirt in the repo (warn before committing).
+    /// Dirt outside the files we manage (warn before committing).
     func unrelatedChanges() async -> [String] {
-        let result = await git("status", "--porcelain")
+        let result = await git(["status", "--porcelain"])
         guard result.ok else { return [] }
         return result.stdout.split(separator: "\n")
             .map(String.init)
-            .filter { !$0.hasSuffix(Self.keymapRelPath) && !$0.isEmpty }
+            .filter { line in
+                !line.isEmpty && !Self.managedPaths.contains { line.hasSuffix($0) }
+            }
     }
 
     func headSHA() async -> String? {
@@ -103,7 +112,7 @@ struct GitPipeline {
 
     func commitAndPush(message: String) async -> [CommandResult] {
         var results: [CommandResult] = []
-        let add = await git("add", "--", Self.keymapRelPath)
+        let add = await git(["add", "--"] + Self.managedPaths)
         results.append(add)
         guard add.ok else { return results }
         let commit = await git("commit", "-m", message)

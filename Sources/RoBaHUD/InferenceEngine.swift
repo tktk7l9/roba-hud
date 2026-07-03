@@ -89,9 +89,8 @@ struct InferenceEngine {
     /// Raw modifier usages currently reported down.
     private var downMods: Set<UInt32> = []
     /// Modifier downs awaiting chord attribution (usage → down time).
+    /// Chord consumption removes the entry, so nothing consumed can commit.
     private var pendingMods: [UInt32: Date] = [:]
-    /// Modifiers consumed as part of a chord (suppressed until release).
-    private var consumedMods: Set<UInt32> = []
 
     /// Most recent key-down attribution, for the owner to consume (stats).
     var lastPress: (layer: Int, position: Int)?
@@ -180,7 +179,6 @@ struct InferenceEngine {
         // not to some standalone modifier key — swallow their pending entries.
         for mod in chosen.implicitModUsages where pendingMods[mod] != nil || downMods.contains(mod) {
             pendingMods.removeValue(forKey: mod)
-            consumedMods.insert(mod)
             attributions.removeValue(forKey: ReverseIndex.key(page: 0x07, usage: mod))
         }
         keyLayer = chosen.layer
@@ -202,7 +200,6 @@ struct InferenceEngine {
         } else {
             downMods.remove(usage)
             pendingMods.removeValue(forKey: usage)
-            consumedMods.remove(usage)
             handleKeyUp(page: 0x07, usage: usage, at: now)
         }
     }
@@ -212,7 +209,6 @@ struct InferenceEngine {
     private mutating func commitExpiredPendingMods(at now: Date) {
         for (usage, downAt) in pendingMods where now.timeIntervalSince(downAt) >= tuning.chordWindow {
             pendingMods.removeValue(forKey: usage)
-            guard !consumedMods.contains(usage) else { continue }
             guard let chosen = choose(candidates: index.candidates(page: 0x07, usage: usage), at: now) else { continue }
             attributions[ReverseIndex.key(page: 0x07, usage: usage)] = (chosen.layer, chosen.position)
             keyLayer = chosen.layer
@@ -227,7 +223,7 @@ struct InferenceEngine {
         guard !candidates.isEmpty else { return nil }
         let matching = candidates.filter { $0.implicitModUsages.isSubset(of: downMods) }
         let pool = matching.isEmpty ? candidates : matching
-        let maxSpecificity = pool.map { $0.implicitModUsages.count }.max() ?? 0
+        let maxSpecificity = pool.reduce(0) { max($0, $1.implicitModUsages.count) }
         let specific = pool.filter { $0.implicitModUsages.count == maxSpecificity }
         let current = effectiveDisplayed(at: now)
         if let onCurrent = specific.first(where: { $0.layer == current }) {

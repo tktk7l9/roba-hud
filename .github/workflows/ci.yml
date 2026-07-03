@@ -14,3 +14,5 @@ jobs:
         run: swift build
       - name: Selftest
         run: swift run RoBaHUD --selftest
+      - name: Coverage gate (lib 100% lines)
+        run: ./scripts/coverage-gate.sh

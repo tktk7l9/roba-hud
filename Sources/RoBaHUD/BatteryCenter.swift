@@ -35,6 +35,16 @@ final class BatteryCenter {
     var menuBarEnabled: Bool = Prefs.menuBarBatteryEnabled {
         didSet { Prefs.menuBarBatteryEnabled = menuBarEnabled }
     }
+    var menuBarSingleLine: Bool = Prefs.menuBarSingleLine {
+        didSet { Prefs.menuBarSingleLine = menuBarSingleLine }
+    }
+
+    /// Discharge forecast from the recent history ("残り約N日").
+    func forecast(role: BatteryRole) -> BatteryForecast.Estimate? {
+        let now = Date()
+        return BatteryForecast.estimate(series: history.series(role: role, days: 7, now: now),
+                                        now: now)
+    }
 
     @ObservationIgnored private var policy = BatteryNotificationPolicy()
     @ObservationIgnored private let monitor = BatteryMonitor()

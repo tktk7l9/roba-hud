@@ -109,6 +109,8 @@ struct BatterySheet: View {
                 }
                 Toggle("接続/切断を通知", isOn: $battery.disconnectNotificationsEnabled)
                 Toggle("メニューバーに残量を表示", isOn: $battery.menuBarEnabled)
+                Toggle("メニューバーを1行表示 (R85 L72)", isOn: $battery.menuBarSingleLine)
+                    .disabled(!battery.menuBarEnabled)
                 if LoginItem.available {
                     Toggle("ログイン時に起動", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { _, on in LoginItem.set(on) }
@@ -134,6 +136,9 @@ struct BatterySheet: View {
             Text(battery.levels.level(of: role).map { "\($0)%" } ?? "—")
                 .font(.system(size: 22, weight: .semibold).monospacedDigit())
                 .foregroundStyle(levelColor(role: role))
+            Text(BatteryForecast.summary(battery.forecast(role: role)) ?? "推定中…")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
         }
     }
 

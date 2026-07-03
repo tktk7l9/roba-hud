@@ -45,25 +45,17 @@ enum KeymapEditor {
                                      newText: newBinding.dtsText)
 
         let reparsed = try KeymapParser.parse(source: newSource, fileURL: keymap.fileURL)
-        guard reparsed.layers.count == keymap.layers.count else {
-            throw ParseError(message: "編集検証失敗: レイヤー数が変化しました")
-        }
-        for (li, newLayer) in reparsed.layers.enumerated() {
-            let oldLayer = keymap.layers[li]
-            guard newLayer.bindings.count == oldLayer.bindings.count else {
-                throw ParseError(message: "編集検証失敗: L\(li) の bindings 数が変化しました")
-            }
-            for (pi, parsed) in newLayer.bindings.enumerated() {
-                if li == layer, pi == position {
-                    guard parsed.binding == newBinding else {
-                        throw ParseError(message: "編集検証失敗: 変更スロットが期待どおり読めません")
-                    }
-                } else {
-                    guard parsed.raw == oldLayer.bindings[pi].raw else {
-                        throw ParseError(message: "編集検証失敗: L\(li)[\(pi)] が巻き添え変更されました")
-                    }
-                }
-            }
+
+        // Flat token-list comparison: exactly one slot may differ, and it must
+        // read back as the new binding. Catches count changes, collateral
+        // edits and serialization mismatches in one shot.
+        let perLayer = keymap.layers[0].bindings.count
+        var expected = keymap.layers.flatMap { $0.bindings.map(\.raw) }
+        expected[layer * perLayer + position] = newBinding.dtsText
+        let actual = reparsed.layers.flatMap { $0.bindings.map(\.raw) }
+        guard actual == expected,
+              reparsed.layers[layer].bindings[position].binding == newBinding else {
+            throw ParseError(message: "編集検証失敗: 変更が対象スロットどおりに読み戻せません")
         }
         return newSource
     }

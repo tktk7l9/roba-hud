@@ -77,6 +77,34 @@ struct BatteryNotificationPolicy {
     }
 }
 
+/// Pure label builder for the menu-bar battery display (selftest-able).
+enum BatteryMenuBarLabel {
+    struct Line: Equatable {
+        let text: String                    // "R\t85%" (tab = right-aligned column)
+        let severity: BatterySeverity?      // nil = unknown level
+    }
+
+    /// Two-line variant (stacked R over L).
+    static func lines(levels: BatteryLevels) -> [Line] {
+        [line(prefix: "R", level: levels.level(of: .central), tab: true),
+         line(prefix: "L", level: levels.level(of: .peripheral(0)), tab: true)]
+    }
+
+    /// Single-line variant: "R85 L72" segments (no tab column).
+    static func singleLine(levels: BatteryLevels) -> [Line] {
+        [line(prefix: "R", level: levels.level(of: .central), tab: false),
+         line(prefix: "L", level: levels.level(of: .peripheral(0)), tab: false)]
+    }
+
+    private static func line(prefix: String, level: Int?, tab: Bool) -> Line {
+        guard let level else {
+            return Line(text: tab ? "\(prefix)\t–" : "\(prefix)–", severity: nil)
+        }
+        let text = tab ? "\(prefix)\t\(level)%" : "\(prefix)\(level)"
+        return Line(text: text, severity: BatterySeverity.of(level: level))
+    }
+}
+
 /// One history sample. Levels may be partial (a half may be unknown).
 struct BatterySample: Codable, Equatable {
     let at: Date

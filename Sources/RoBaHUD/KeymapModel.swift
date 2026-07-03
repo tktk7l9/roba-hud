@@ -74,18 +74,14 @@ struct Keymap {
     let scrollLayer: Int
 
     /// Resolve &trans down to the base layer so every (layer, position) has a
-    /// concrete binding to label and reverse-index.
+    /// concrete binding to label and reverse-index. (roBa activates one layer
+    /// over base, so fallthrough is a single hop to layer 0.)
     func effective(layer: Int, position: Int) -> KeyBinding {
-        var current = layer
-        while current >= 0 {
-            let binding = layers[current].bindings[position].binding
-            if case .transparent = binding, current != 0 {
-                current = 0     // roBa has no intermediate fallthrough chain
-                continue
-            }
-            return binding
+        let binding = layers[layer].bindings[position].binding
+        if case .transparent = binding, layer != 0 {
+            return layers[0].bindings[position].binding
         }
-        return .none
+        return binding
     }
 
     func layerName(_ index: Int) -> String {

@@ -4,6 +4,28 @@ struct HUDView: View {
     @Bindable var store: HUDStore
 
     var body: some View {
+        Group {
+            if store.compactMode {
+                compactBar
+            } else {
+                fullBody
+            }
+        }
+        .sheet(isPresented: $store.showStatsSheet) {
+            StatsSheet(store: store)
+        }
+        .sheet(isPresented: $store.showFlashGuide) {
+            FlashGuide(store: store)
+        }
+        .sheet(isPresented: Binding(
+            get: { store.battery.showSheet },
+            set: { store.battery.showSheet = $0 }
+        )) {
+            BatterySheet(battery: store.battery)
+        }
+    }
+
+    private var fullBody: some View {
         VStack(spacing: 6) {
             header
             if let error = store.loadError {
@@ -30,18 +52,40 @@ struct HUDView: View {
         }
         .padding(.top, 4)
         .frame(minWidth: 420, minHeight: 220)
-        .sheet(isPresented: $store.showStatsSheet) {
-            StatsSheet(store: store)
+    }
+
+    /// Compact bar: current layer + recent keys + battery, one row.
+    private var compactBar: some View {
+        HStack(spacing: 8) {
+            if store.pinnedLayer != nil {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.orange)
+            }
+            if let keymap = store.keymap, keymap.layers.indices.contains(store.displayedLayer) {
+                Text(keymap.layers[store.displayedLayer].name)
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(Color.accentColor.opacity(0.8)))
+                    .foregroundStyle(.white)
+            }
+            HStack(spacing: 5) {
+                ForEach(Array(store.recentPresses.enumerated()), id: \.element.id) { index, press in
+                    Text(press.text)
+                        .font(.system(size: 12, weight: index == 0 ? .semibold : .regular))
+                        .opacity(1.0 - Double(index) * 0.15)
+                }
+            }
+            .frame(minWidth: 120, alignment: .leading)
+            Spacer()
+            BatteryChips(battery: store.battery)
+            connectionDot
+            gearMenu
         }
-        .sheet(isPresented: $store.showFlashGuide) {
-            FlashGuide(store: store)
-        }
-        .sheet(isPresented: Binding(
-            get: { store.battery.showSheet },
-            set: { store.battery.showSheet = $0 }
-        )) {
-            BatterySheet(battery: store.battery)
-        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .frame(minWidth: 460)
     }
 
     // MARK: - Git / pipeline UI
@@ -224,7 +268,14 @@ struct HUDView: View {
             Button("バッテリー…") { store.battery.showSheet = true }
             Divider()
             Toggle("編集モード", isOn: $store.editMode)
+            Button("CHEATSHEET再生成") { store.regenerateCheatsheet() }
             Button("SVG再生成 (draw.yml)") { store.triggerDraw() }
+            Divider()
+            Toggle("コンパクト表示", isOn: $store.compactMode)
+            Toggle("クリック透過", isOn: Binding(
+                get: { store.clickThrough },
+                set: { store.setClickThrough($0) }
+            ))
             Divider()
             Picker("不透明度", selection: $store.opacity) {
                 Text("100%").tag(1.0)

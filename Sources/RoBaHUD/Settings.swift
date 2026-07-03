@@ -40,6 +40,21 @@ enum Prefs {
         set { defaults.set(newValue, forKey: "disconnectNotificationsEnabled") }
     }
 
+    static var compactMode: Bool {
+        get { defaults.bool(forKey: "compactMode") }
+        set { defaults.set(newValue, forKey: "compactMode") }
+    }
+
+    static var clickThrough: Bool {
+        get { defaults.bool(forKey: "clickThrough") }
+        set { defaults.set(newValue, forKey: "clickThrough") }
+    }
+
+    static var menuBarSingleLine: Bool {
+        get { defaults.bool(forKey: "menuBarSingleLine") }
+        set { defaults.set(newValue, forKey: "menuBarSingleLine") }
+    }
+
     static var menuBarBatteryEnabled: Bool {
         get { defaults.object(forKey: "menuBarBatteryEnabled") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "menuBarBatteryEnabled") }

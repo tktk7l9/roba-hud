@@ -39,6 +39,36 @@ final class HUDStore {
     var showHeatmap = false
     var showStatsSheet = false
 
+    /// Compact bar mode: current layer + recent keys only.
+    var compactMode: Bool = Prefs.compactMode {
+        didSet { Prefs.compactMode = compactMode }
+    }
+    /// Mouse events pass through the panel (disabled while editing).
+    var clickThrough: Bool = Prefs.clickThrough {
+        didSet { Prefs.clickThrough = clickThrough }
+    }
+
+    struct RecentPress: Identifiable, Equatable {
+        let id: UUID
+        let text: String
+        let at: Date
+    }
+    /// Last few key presses for the compact bar (newest first).
+    var recentPresses: [RecentPress] = []
+
+    /// Click-through would make the gear menu unreachable; require the menu
+    /// bar item as an escape hatch.
+    func setClickThrough(_ on: Bool) {
+        if on, !battery.menuBarEnabled {
+            statusToast = "クリック透過はメニューバー表示が有効なときのみ使えます（解除手段の確保のため）"
+            return
+        }
+        clickThrough = on
+        if on {
+            statusToast = "クリック透過ON — 解除はメニューバーのバッテリーメニューから"
+        }
+    }
+
     // MARK: - Edit mode / git state
 
     var editMode = false {
@@ -177,9 +207,18 @@ final class HUDStore {
         engine.handle(event, at: Date())
         if let press = engine.lastPress {
             statsStore.record(layer: press.layer, position: press.position)
+            recordRecentPress(press)
             engine.lastPress = nil
         }
         applyEngine(engine)
+    }
+
+    private func recordRecentPress(_ press: (layer: Int, position: Int)) {
+        guard let keymap else { return }
+        let binding = keymap.effective(layer: press.layer, position: press.position)
+        let label = LabelProvider.label(for: binding, in: keymap)
+        recentPresses.insert(RecentPress(id: UUID(), text: label.tap, at: Date()), at: 0)
+        if recentPresses.count > 6 { recentPresses.removeLast(recentPresses.count - 6) }
     }
 
     private func engineTick() {
@@ -221,6 +260,7 @@ final class HUDStore {
             editError = nil
             editSummaries.append("\(keymap.layerName(layer))[\(position)] \(oldText) → \(binding.dtsText)")
             loadKeymap()
+            regenerateCheatsheet(announce: false)
             Task { await refreshDiff() }
         } catch {
             editError = "\(error)"
@@ -240,6 +280,33 @@ final class HUDStore {
             editSummaries = []
             loadKeymap()
             await refreshDiff()
+        }
+    }
+
+    /// Regenerate the layer diagrams inside zmk-config's CHEATSHEET.md so it
+    /// can never drift from the keymap. Hand-written prose stays untouched.
+    @discardableResult
+    func regenerateCheatsheet(announce: Bool = true) -> Bool {
+        guard let keymap, !geometry.isEmpty else { return false }
+        let url = URL(fileURLWithPath: Prefs.zmkConfigPath).appendingPathComponent("CHEATSHEET.md")
+        guard let markdown = try? String(contentsOf: url, encoding: .utf8) else {
+            if announce { statusToast = "CHEATSHEET.md が見つかりません" }
+            return false
+        }
+        let date = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
+        guard let updated = CheatsheetGenerator.regenerate(markdown: markdown, keymap: keymap,
+                                                           geometry: geometry, date: date) else {
+            if announce { statusToast = "CHEATSHEET.md は最新です" }
+            return false
+        }
+        do {
+            try Data(updated.utf8).write(to: url, options: .atomic)
+            if announce { statusToast = "CHEATSHEET.md の配置図を再生成しました" }
+            Task { await refreshDiff() }
+            return true
+        } catch {
+            if announce { statusToast = "CHEATSHEET.md 書込失敗: \(error)" }
+            return false
         }
     }
 
@@ -282,6 +349,7 @@ final class HUDStore {
             return
         }
 
+        regenerateCheatsheet(announce: false)   // keep CHEATSHEET in the same commit
         pipelineState = .running("commit & push 中")
         let results = await pipeline.commitAndPush(message: commitMessage())
         pipelineLog += results.map(\.display)

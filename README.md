@@ -9,7 +9,11 @@ roBa（ZMK 分割キーボード・右手トラックボール）専用の macOS
 - **レイヤー自動推定** — レイヤーは HID に乗らないため、キーコード逆引き＋トラックボール検知（移動=MOUSE / スクロール=SCROLL、ファームの 700ms automouse と同じ減衰）で表示レイヤーを推定。レイヤーピルで手動ピン留めも可能
 - **打鍵ヒートマップ / 統計** — キー・レイヤー別の使用頻度をローカル記録し、キーマップに重ねて表示
 - **キーマップ編集** — 編集モードでキーをクリック → キーコード選択 → `.keymap` を外科的に書き換え（列揃え維持・書込前に再パース検証）→ diff 確認 → Commit & Push → GitHub Actions のビルドを監視 → UF2 を自動ダウンロード → 書き込みガイド表示。**リポジトリが正本のまま**
-- **左右バッテリー監視**（zmk-battery-center 相当） — CoreBluetooth で標準 Battery Service (0x180F) を購読し、CUD "Peripheral N"（ZMK の `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_PROXY`）で左右を識別。ヘッダーに右/左の残量チップ、クリックで履歴グラフ（24h/7日/30日・Swift Charts）。**メニューバーにも 2 行（R/L）で常時表示**（残量で色分け・メニューから HUD の表示/非表示と終了）。低残量通知（しきい値可変・ヒステリシス付き）・接続/切断通知・ログイン時自動起動（SMAppService）に対応。既存の HID ボンドに相乗りするため打鍵には影響しない。メニューバー表示中はパネルを閉じても常駐し、メニューバーから再表示できる
+- **左右バッテリー監視**（zmk-battery-center 相当） — CoreBluetooth で標準 Battery Service (0x180F) を購読し、CUD "Peripheral N"（ZMK の `CONFIG_ZMK_SPLIT_BLE_CENTRAL_BATTERY_LEVEL_PROXY`）で左右を識別。ヘッダーに右/左の残量チップ、クリックで履歴グラフ（24h/7日/30日・Swift Charts）＋**放電レートから「残り約N日」を予測**。**メニューバーにも常時表示**（2行 R/L または 1行 `R85 L72`・残量で色分け・メニューから HUD 表示切替/クリック透過/終了）。低残量通知（しきい値可変・ヒステリシス付き）・接続/切断通知・ログイン時自動起動（SMAppService）に対応。既存の HID ボンドに相乗りするため打鍵には影響しない。メニューバー表示中はパネルを閉じても常駐し、メニューバーから再表示できる
+- **グローバルホットキー ⌥⌘K** — どのアプリにいても HUD を表示/非表示（Carbon RegisterEventHotKey・TCC 不要）
+- **コンパクトモード** — 現在レイヤー＋直近の打鍵＋バッテリーだけの小型バー表示（ギアメニューで切替）
+- **クリック透過** — HUD がマウスを素通しするモード（編集モード中は自動解除。解除はメニューバーのメニューから）
+- **CHEATSHEET.md 自動生成** — zmk-config の CHEATSHEET.md 内の配置図（コードブロック）だけを keymap から再生成し、手書きの解説は保持。キー編集・Commit & Push 時に自動で同期されるため**ドリフトが構造的に起きない**（`--regen-cheatsheet` CLI もあり）
 
 ## セットアップ
 
@@ -32,8 +36,10 @@ open /Applications/RoBaHUD.app
 ## CLI
 
 ```sh
-swift run RoBaHUD --selftest      # 依存ゼロの自己テスト（CI と同一）
-swift run RoBaHUD --parse-check   # 実 keymap のパース検証
+swift run RoBaHUD --selftest          # 依存ゼロの自己テスト（CI と同一）
+swift run RoBaHUD --parse-check       # 実 keymap のパース検証
+swift run RoBaHUD --regen-cheatsheet  # CHEATSHEET.md の配置図を再生成
+./scripts/coverage-gate.sh            # lib 10ファイル 行100% ゲート（CI と同一）
 /Applications/RoBaHUD.app/Contents/MacOS/RoBaHUD --hid-dump       # HID イベントを標準出力へ
 /Applications/RoBaHUD.app/Contents/MacOS/RoBaHUD --battery-dump   # 左右バッテリー読み取りの診断
 ```

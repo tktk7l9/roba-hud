@@ -1,24 +1,6 @@
 import AppKit
 import Foundation
 
-/// Pure label builder for the menu-bar battery display (selftest-able).
-enum BatteryMenuBarLabel {
-    struct Line: Equatable {
-        let text: String                    // "R\t85%" (tab = right-aligned column)
-        let severity: BatterySeverity?      // nil = unknown level
-    }
-
-    static func lines(levels: BatteryLevels) -> [Line] {
-        [line(prefix: "R", level: levels.level(of: .central)),
-         line(prefix: "L", level: levels.level(of: .peripheral(0)))]
-    }
-
-    private static func line(prefix: String, level: Int?) -> Line {
-        guard let level else { return Line(text: "\(prefix)\t–", severity: nil) }
-        return Line(text: "\(prefix)\t\(level)%", severity: BatterySeverity.of(level: level))
-    }
-}
-
 /// NSStatusItem showing both halves' battery levels in the macOS menu bar
 /// (zmk-battery-center's tray display). Two-line rendering follows the
 /// claude-usage-bar pattern: the attributed string is rasterized to an image
@@ -29,6 +11,8 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
     private let showPanel: () -> Void
     private let hidePanel: () -> Void
     private let isPanelVisible: () -> Bool
+    private let isClickThrough: () -> Bool
+    private let setClickThrough: (Bool) -> Void
     private var statusItem: NSStatusItem?
 
     var isInstalled: Bool { statusItem != nil }
@@ -36,11 +20,15 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
     init(battery: BatteryCenter,
          showPanel: @escaping () -> Void,
          hidePanel: @escaping () -> Void,
-         isPanelVisible: @escaping () -> Bool) {
+         isPanelVisible: @escaping () -> Bool,
+         isClickThrough: @escaping () -> Bool,
+         setClickThrough: @escaping (Bool) -> Void) {
         self.battery = battery
         self.showPanel = showPanel
         self.hidePanel = hidePanel
         self.isPanelVisible = isPanelVisible
+        self.isClickThrough = isClickThrough
+        self.setClickThrough = setClickThrough
         super.init()
         if battery.menuBarEnabled { install() }
         observe()
@@ -50,6 +38,7 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
         withObservationTracking {
             _ = battery.levels
             _ = battery.menuBarEnabled
+            _ = battery.menuBarSingleLine
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -85,8 +74,29 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
 
     private func render() {
         guard let button = statusItem?.button else { return }
-        button.image = Self.image(Self.attributed(BatteryMenuBarLabel.lines(levels: battery.levels)))
-        button.imagePosition = .imageOnly
+        if battery.menuBarSingleLine {
+            button.image = nil
+            button.imagePosition = .noImage
+            button.attributedTitle = Self.singleLineAttributed(
+                BatteryMenuBarLabel.singleLine(levels: battery.levels))
+        } else {
+            button.attributedTitle = NSAttributedString()
+            button.image = Self.image(Self.attributed(BatteryMenuBarLabel.lines(levels: battery.levels)))
+            button.imagePosition = .imageOnly
+        }
+    }
+
+    private static func singleLineAttributed(_ segments: [BatteryMenuBarLabel.Line]) -> NSAttributedString {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .medium)
+        let result = NSMutableAttributedString()
+        for (index, segment) in segments.enumerated() {
+            if index > 0 { result.append(NSAttributedString(string: " ", attributes: [.font: font])) }
+            result.append(NSAttributedString(string: segment.text, attributes: [
+                .font: font,
+                .foregroundColor: color(for: segment.severity),
+            ]))
+        }
+        return result
     }
 
     private static func color(for severity: BatterySeverity?) -> NSColor {
@@ -145,8 +155,11 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
 
         for role in [BatteryRole.central, .peripheral(0)] {
             let level = battery.levels.level(of: role)
-            let item = NSMenuItem(title: "\(role.displayName)手側: \(level.map { "\($0)%" } ?? "—")",
-                                  action: nil, keyEquivalent: "")
+            var title = "\(role.displayName)手側: \(level.map { "\($0)%" } ?? "—")"
+            if let summary = BatteryForecast.summary(battery.forecast(role: role)) {
+                title += "（\(summary)）"
+            }
+            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
             item.isEnabled = false
             menu.addItem(item)
         }
@@ -167,6 +180,14 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
         detail.target = self
         menu.addItem(detail)
 
+        // Escape hatch: with click-through on, the HUD itself is unclickable,
+        // so the toggle must live here.
+        let clickThrough = NSMenuItem(title: "クリック透過",
+                                      action: #selector(toggleClickThrough), keyEquivalent: "")
+        clickThrough.target = self
+        clickThrough.state = isClickThrough() ? .on : .off
+        menu.addItem(clickThrough)
+
         menu.addItem(.separator())
         let quit = NSMenuItem(title: "終了", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
@@ -184,6 +205,10 @@ final class BatteryStatusItem: NSObject, NSMenuDelegate {
     @objc private func openDetail() {
         showPanel()
         battery.showSheet = true
+    }
+
+    @objc private func toggleClickThrough() {
+        setClickThrough(!isClickThrough())
     }
 
     @objc private func quit() {
