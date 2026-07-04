@@ -101,6 +101,11 @@ struct InferenceEngine {
 
     /// Most recent key-down attribution, for the owner to consume (stats).
     var lastPress: (layer: Int, position: Int)?
+    /// Same key-down with the modifiers that were *physically* chorded: mods
+    /// arriving in the same report as the key (single LG(LS(N4))-style
+    /// bindings) are still inside the chord window and excluded, so only
+    /// separately held modifiers count. For the owner's insights log.
+    var lastKeyEvent: (page: UInt32, usage: UInt32, mods: Set<UInt32>)?
 
     /// Marker usages currently held, in press order (last = active layer).
     private var markerDowns: [(usage: UInt32, layer: Int)] = []
@@ -187,6 +192,13 @@ struct InferenceEngine {
         guard let chosen = choose(candidates: index.candidates(page: page, usage: usage), at: now) else { return }
         attributions[ReverseIndex.key(page: page, usage: usage)] = (chosen.layer, chosen.position)
         lastPress = (chosen.layer, chosen.position)
+        // Mods younger than the chord window came with the key itself (very
+        // fast rolls are undercounted, acceptable for trend analysis).
+        let chordMods = downMods.filter { mod in
+            guard let downAt = pendingMods[mod] else { return true }
+            return now.timeIntervalSince(downAt) >= tuning.chordWindow
+        }
+        lastKeyEvent = (page, usage, chordMods)
         // Chord attribution: implicit mods of the chosen binding belong to it,
         // not to some standalone modifier key — swallow their pending entries.
         for mod in chosen.implicitModUsages where pendingMods[mod] != nil || downMods.contains(mod) {

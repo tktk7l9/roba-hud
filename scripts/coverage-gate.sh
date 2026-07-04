@@ -7,7 +7,7 @@ cd "$(dirname "$0")/.."
 
 LIB_FILES=(
   BatteryForecast BatteryModel CheatsheetGenerator Geometry
-  InferenceEngine KeycodeTable KeymapEditor KeymapModel KeymapParser Stats
+  InferenceEngine Insights KeycodeTable KeymapEditor KeymapModel KeymapParser Stats
 )
 
 TMP="${TMPDIR:-/tmp}/roba-hud-coverage"

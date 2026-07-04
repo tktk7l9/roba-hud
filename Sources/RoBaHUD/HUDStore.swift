@@ -35,6 +35,7 @@ final class HUDStore {
     }
 
     let statsStore = StatsStore()
+    let insightsStore = InsightsStore()
     let battery = BatteryCenter()
     var showHeatmap = false
     var showStatsSheet = false
@@ -208,6 +209,10 @@ final class HUDStore {
         if let press = engine.lastPress {
             statsStore.record(layer: press.layer, position: press.position)
             recordRecentPress(press)
+            if let key = engine.lastKeyEvent {
+                insightsStore.record(layer: press.layer, page: key.page, usage: key.usage, mods: key.mods)
+                engine.lastKeyEvent = nil
+            }
             engine.lastPress = nil
         }
         applyEngine(engine)

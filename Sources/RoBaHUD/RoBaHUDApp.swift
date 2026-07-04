@@ -40,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated {
             controller?.store.statsStore.flush()
+            controller?.store.insightsStore.flush()
             controller?.store.battery.flush()
         }
     }

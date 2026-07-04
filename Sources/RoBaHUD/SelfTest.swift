@@ -35,6 +35,7 @@ enum SelfTest {
         testLabels()
         testInference()
         testStats()
+        testInsights()
         testEditor()
         testGHRunParsing()
         testBatteryModel()
@@ -321,6 +322,23 @@ enum SelfTest {
         e.handle(.key(page: 7, usage: 0x5F, down: true), at: at(0))
         expect(e.lastPress?.layer == 2 && e.lastPress?.position == 1, "lastPress set on key down")
 
+        // Physically chorded ⌘⇧4 (mods held past the chord window) reports
+        // its mods via lastKeyEvent…
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0xE3, down: true), at: at(0))
+        e.handle(.key(page: 7, usage: 0xE1, down: true), at: at(0.01))
+        e.handle(.key(page: 7, usage: 0x21, down: true), at: at(0.2))
+        expect(e.lastKeyEvent?.mods == Set<UInt32>([0xE3, 0xE1]), "physically chorded mods reported")
+        expect(e.lastKeyEvent?.usage == 0x21, "chord key usage reported")
+
+        // …while mods arriving with the key itself (LG(LS(N4)) binding =
+        // same report) stay inside the chord window and are excluded.
+        e = fresh()
+        e.handle(.key(page: 7, usage: 0xE3, down: true), at: at(0))
+        e.handle(.key(page: 7, usage: 0xE1, down: true), at: at(0.001))
+        e.handle(.key(page: 7, usage: 0x21, down: true), at: at(0.002))
+        expect(e.lastKeyEvent?.mods == Set<UInt32>(), "same-report mods excluded")
+
         // ── Layer markers (F21–F24 = firmware ground truth) ──
         // F22 down → NUM instantly, no highlight/stats from the marker itself.
         e = fresh()
@@ -385,6 +403,105 @@ enum SelfTest {
         } else {
             expect(false, "stats encodes")
         }
+    }
+
+    // MARK: - Insights
+
+    private static func testInsights() {
+        // ── Naming ──
+        expectEqual(InsightsNaming.keyGlyph(page: 0x07, usage: 0x21), "4", "usage 0x21 → base glyph 4, not $")
+        expectEqual(InsightsNaming.keyGlyph(page: 0x09, usage: 1), "MB1", "mouse button glyph")
+        expect(InsightsNaming.keyGlyph(page: 0x0B, usage: 0x99) == nil, "unknown usage → nil")
+
+        expectEqual(InsightsNaming.modGlyphs([0xE3, 0xE1, 0xE0]), "⌃⇧⌘", "mods in ⌃⌥⇧⌘ order")
+        expectEqual(InsightsNaming.modGlyphs([0xE1, 0xE5]), "⇧", "left/right collapse to one glyph")
+
+        expectEqual(InsightsNaming.chordLabel(page: 0x07, usage: 0x21, mods: [0xE3, 0xE1]), "⇧⌘4", "chord label")
+        expect(InsightsNaming.chordLabel(page: 0x07, usage: 0x21, mods: []) == nil, "no mods → no chord")
+        expect(InsightsNaming.chordLabel(page: 0x0B, usage: 0x99, mods: [0xE1]) == nil, "unknown key → no chord")
+        expect(InsightsNaming.chordLabel(page: 0x07, usage: 0x21, mods: [0x10]) == nil, "bogus mod usages → no chord")
+
+        expectEqual(InsightsNaming.runKey(page: 0x07, usage: 0x50, mods: []), "←", "arrow run key")
+        expectEqual(InsightsNaming.runKey(page: 0x07, usage: 0x2A, mods: [0xE2]), "⌥⌫", "modified run key")
+        expect(InsightsNaming.runKey(page: 0x07, usage: 0x04, mods: []) == nil, "letters are not run-tracked")
+        expect(InsightsNaming.runKey(page: 0x0C, usage: 0xB0, mods: []) == nil, "non-keyboard page not run-tracked")
+
+        expect(InsightsLog.isTypingShift("⇧A"), "⇧A is plain typing")
+        expect(!InsightsLog.isTypingShift("⇧4"), "⇧digit is a shortcut candidate")
+        expect(!InsightsLog.isTypingShift("⌘C"), "⌘ chords are shortcuts")
+        expect(!InsightsLog.isTypingShift("⇧⌘A"), "multi-mod chords are shortcuts")
+
+        expectEqual(InsightsLog.dayKey(for: Date(timeIntervalSince1970: 0)).count, 10, "day key is yyyy-MM-dd")
+
+        // ── Log aggregation ──
+        var log = InsightsLog()
+        log.recordPress(layer: 0, chord: "⌘C", app: "com.app.a", day: "2026-07-04")
+        log.recordPress(layer: 0, chord: "⌘C", app: "com.app.a", day: "2026-07-04")
+        log.recordPress(layer: 2, chord: nil, app: nil, day: "2026-07-04")
+        log.recordPress(layer: 0, chord: "⇧A", app: "com.app.a", day: "2026-07-04")
+        log.recordPress(layer: 0, chord: "⌘V", app: nil, day: "2026-07-03")
+        log.recordPress(layer: 0, chord: "⌘B", app: nil, day: "2026-07-03")
+        expectEqual(log.days["2026-07-04"]?.layers, ["0": 3, "2": 1], "per-day layer counts")
+        expectEqual(log.days["2026-07-04"]?.apps["com.app.a"], 3, "per-app press counts")
+        expectEqual(log.days["2026-07-04"]?.chords["⌘C"], 2, "chord counts")
+        expectEqual(log.days["2026-07-04"]?.appChords["com.app.a"]?["⌘C"], 2, "per-app chord counts")
+
+        let chords = log.chordTotals()
+        expectEqual(chords.map(\.chord), ["⌘C", "⌘B", "⌘V"], "chord totals sorted, typing shift excluded")
+        expect(log.chordTotals(includeTypingShift: true).map(\.chord).contains("⇧A"),
+               "typing shift included on demand")
+
+        log.recordRun(key: "←", length: 5, day: "2026-07-02")   // fresh day: no presses yet
+        log.recordRun(key: "←", length: 3, day: "2026-07-04")
+        log.recordRun(key: "⌫", length: 4, day: "2026-07-04")
+        log.recordRun(key: "⌦", length: 4, day: "2026-07-04")
+        let runs = log.runTotals()
+        expectEqual(runs.map(\.key), ["←", "⌦", "⌫"], "run totals sorted by presses then key")
+        expect(runs[0].stats.runs == 2 && runs[0].stats.presses == 8 && runs[0].stats.maxLength == 5,
+               "run stats merge across days")
+
+        // JSON round-trip.
+        if let data = try? JSONEncoder().encode(log),
+           let decoded = try? JSONDecoder().decode(InsightsLog.self, from: data) {
+            expectEqual(decoded, log, "insights JSON round-trip")
+        } else {
+            expect(false, "insights encode")
+        }
+
+        // Prune keeps recent days, drops old ones.
+        var pruned = log
+        pruned.days[InsightsLog.dayKey(for: Date())] = InsightsLog.Day()
+        pruned.days["2000-01-01"] = InsightsLog.Day()
+        pruned.prune(keepDays: 90, now: Date())
+        expect(pruned.days["2000-01-01"] == nil, "prune drops old days")
+        expect(pruned.days[InsightsLog.dayKey(for: Date())] != nil, "prune keeps today")
+
+        // ── RunTracker ──
+        func rt(_ t: TimeInterval) -> Date { Date(timeIntervalSinceReferenceDate: t) }
+        var tracker = RunTracker()
+        expect(tracker.track(runKey: "←", at: rt(0)) == nil, "burst starts silently")
+        expect(tracker.track(runKey: "←", at: rt(0.2)) == nil, "burst continues")
+        expect(tracker.track(runKey: "←", at: rt(0.4)) == nil, "burst grows")
+        let byOther = tracker.track(runKey: nil, at: rt(0.6))
+        expect(byOther?.key == "←" && byOther?.length == 3, "untracked key finishes burst")
+
+        _ = tracker.track(runKey: "⌫", at: rt(1.0))
+        _ = tracker.track(runKey: "⌫", at: rt(1.2))
+        expect(tracker.track(runKey: "←", at: rt(1.4)) == nil, "short burst is swallowed")
+
+        _ = tracker.track(runKey: "←", at: rt(1.6))
+        _ = tracker.track(runKey: "←", at: rt(1.8))
+        let byGap = tracker.track(runKey: "←", at: rt(5.0))
+        expect(byGap?.key == "←" && byGap?.length == 3, "gap finishes burst of the same key")
+
+        expect(tracker.expire(at: rt(5.1)) == nil, "in-progress burst is kept")
+        _ = tracker.track(runKey: "←", at: rt(5.2))
+        _ = tracker.track(runKey: "←", at: rt(5.4))
+        let stale = tracker.expire(at: rt(10))
+        expect(stale?.key == "←" && stale?.length == 3, "expire flushes a stale burst")
+        expect(tracker.expire(at: rt(11)) == nil, "expire without burst → nil")
+        _ = tracker.track(runKey: "⌫", at: rt(12))
+        expect(tracker.expire(at: rt(14)) == nil, "short stale burst is swallowed")
     }
 
     // MARK: - Editor (surgical replacement)

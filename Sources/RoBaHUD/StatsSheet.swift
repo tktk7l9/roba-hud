@@ -27,6 +27,16 @@ struct StatsSheet: View {
                 layerDistribution(stats)
                 Divider()
                 topKeys(stats)
+                let chords = store.insightsStore.log.chordTotals()
+                if !chords.isEmpty {
+                    Divider()
+                    topChords(chords)
+                }
+                let runs = store.insightsStore.log.runTotals()
+                if !runs.isEmpty {
+                    Divider()
+                    topRuns(runs)
+                }
             }
 
             HStack {
@@ -77,6 +87,36 @@ struct StatsSheet: View {
                         .font(.system(size: 11))
                     Spacer()
                     Text("\(item.count)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func topChords(_ chords: [(chord: String, count: Int)]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("よく使うショートカット Top 8").font(.system(size: 11, weight: .semibold))
+            ForEach(chords.prefix(8), id: \.chord) { item in
+                HStack(spacing: 6) {
+                    Text(item.chord).font(.system(size: 11))
+                    Spacer()
+                    Text("\(item.count)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func topRuns(_ runs: [(key: String, stats: InsightsLog.RunStats)]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("連打バースト(3連打以上)").font(.system(size: 11, weight: .semibold))
+            ForEach(runs.prefix(5), id: \.key) { item in
+                HStack(spacing: 6) {
+                    Text(item.key).font(.system(size: 11))
+                    Spacer()
+                    Text("\(item.stats.runs)回 / 計\(item.stats.presses)打 / 最長\(item.stats.maxLength)")
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
