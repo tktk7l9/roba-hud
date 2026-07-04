@@ -25,9 +25,16 @@ enum CheatsheetGenerator {
         case .none: "✕"
         case .bootloader: "BOOT"
         case .sysReset: "RST"
-        case .opaque(let behavior, _):
-            behavior == "bt_clr_hold" ? "BTclr*" : behavior
+        case .opaque(let behavior, _): opaqueLabel(behavior)
         }
+    }
+
+    private static func opaqueLabel(_ behavior: String) -> String {
+        if behavior == "bt_clr_hold" { return "BTclr*" }
+        if behavior.hasPrefix("bt_sel_m"), let n = Int(behavior.dropFirst("bt_sel_m".count)) {
+            return "BT\(n)"
+        }
+        return behavior
     }
 
     /// The ASCII grid for one layer: rows of padded cells, split-halves

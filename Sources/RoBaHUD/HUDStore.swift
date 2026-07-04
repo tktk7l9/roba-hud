@@ -39,6 +39,17 @@ final class HUDStore {
     let battery = BatteryCenter()
     var showHeatmap = false
     var showStatsSheet = false
+    var showDeviceSheet = false
+
+    /// BT profile this Mac is bonded on — auto-learned from the firmware
+    /// profile marker, or set manually in the device sheet.
+    var thisMacProfile: Int? = Prefs.thisMacProfile {
+        didSet { Prefs.thisMacProfile = thisMacProfile }
+    }
+    /// User labels per BT profile.
+    var btLabels: [Int: String] = Prefs.btLabels {
+        didSet { Prefs.btLabels = btLabels }
+    }
 
     /// Compact bar mode: current layer + recent keys only.
     var compactMode: Bool = Prefs.compactMode {
@@ -204,6 +215,13 @@ final class HUDStore {
         if case .connection(let up) = event {
             deviceConnected = up
         }
+        // Profile markers are ours alone — consume them before inference so
+        // they never show up as highlights, stats or insights.
+        if case .key(let page, let usage, let down) = event,
+           let marker = ProfileMarker.decode(page: page, usage: usage) {
+            if down { handleProfileMarker(marker) }
+            return
+        }
         guard var engine else { return }
         engine.handle(event, at: Date())
         if let press = engine.lastPress {
@@ -216,6 +234,22 @@ final class HUDStore {
             engine.lastPress = nil
         }
         applyEngine(engine)
+    }
+
+    private func handleProfileMarker(_ marker: ProfileMarker) {
+        switch marker {
+        case .selected(let n):
+            thisMacProfile = n
+            let label = btLabels[n].map { "（\($0)）" } ?? ""
+            statusToast = "BT\(n) に切替\(label) — このMacのプロファイルとして記録"
+        case .cleared:
+            if let n = thisMacProfile {
+                statusToast = "BT\(n) のボンドをクリアしました"
+            } else {
+                statusToast = "現在プロファイルのボンドをクリアしました"
+            }
+            thisMacProfile = nil
+        }
     }
 
     private func recordRecentPress(_ press: (layer: Int, position: Int)) {

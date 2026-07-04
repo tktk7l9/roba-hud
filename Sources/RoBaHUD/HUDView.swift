@@ -14,6 +14,9 @@ struct HUDView: View {
         .sheet(isPresented: $store.showStatsSheet) {
             StatsSheet(store: store)
         }
+        .sheet(isPresented: $store.showDeviceSheet) {
+            DeviceSheet(store: store)
+        }
         .sheet(isPresented: $store.showFlashGuide) {
             FlashGuide(store: store)
         }
@@ -265,6 +268,7 @@ struct HUDView: View {
             Divider()
             Toggle("ヒートマップ", isOn: $store.showHeatmap)
             Button("統計…") { store.showStatsSheet = true }
+            Button("デバイス…") { store.showDeviceSheet = true }
             Button("バッテリー…") { store.battery.showSheet = true }
             Divider()
             Toggle("編集モード", isOn: $store.editMode)

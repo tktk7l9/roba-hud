@@ -36,6 +36,7 @@ enum SelfTest {
         testInference()
         testStats()
         testInsights()
+        testProfileMarker()
         testEditor()
         testGHRunParsing()
         testBatteryModel()
@@ -143,10 +144,16 @@ enum SelfTest {
             expectEqual(params, ["0", "0"], "opaque params")
         } else { expect(false, "L3[9] is opaque") }
         expectEqual(l3[32].binding.dtsText, "&kp LC(LG(LS(N4)))", "nested chord")
-        if case .bt(let cmd, let param) = l3[21].binding {
+        if case .opaque(let behavior, let params) = l3[21].binding {
+            expectEqual(behavior, "bt_sel_m1", "bt marker macro opaque")
+            expect(params.isEmpty, "bt marker macro has no params")
+        } else { expect(false, "L3[21] is bt_sel_m1") }
+        if case .bt(let cmd, let param) = try! KeymapParser.interpret(token: "&bt BT_SEL 1") {
             expectEqual(cmd, "BT_SEL", "bt command")
             expectEqual(param, 1, "bt param")
-        } else { expect(false, "L3[21] is bt") }
+        } else { expect(false, "&bt token parses to .bt") }
+        expectEqual(try! KeymapParser.interpret(token: "&bt BT_SEL 1").dtsText, "&bt BT_SEL 1",
+                    "bt with param serializes")
 
         // Comment blanking: same char count, newlines preserved.
         let chars = Array(Fixtures.keymap)
@@ -213,6 +220,9 @@ enum SelfTest {
 
         let chord = LabelProvider.label(for: keymap.layers[3].bindings[19].binding, in: keymap)
         expectEqual(chord.tap, "⇧⌘4", "screenshot chord label")
+
+        let btm = LabelProvider.label(for: keymap.layers[3].bindings[21].binding, in: keymap)
+        expectEqual(btm.tap, "BT1", "bt_sel_m1 label")
     }
 
     // MARK: - Inference engine (fake clock scenarios)
@@ -504,6 +514,37 @@ enum SelfTest {
         expect(tracker.expire(at: rt(14)) == nil, "short stale burst is swallowed")
     }
 
+    // MARK: - Profile markers / BT actions
+
+    private static func testProfileMarker() {
+        // Decode: K_AGAIN…K_PASTE = BT0…BT4, K_FIND = cleared, others nil.
+        expectEqual(ProfileMarker.decode(page: 0x07, usage: 0x79), .selected(0), "K_AGAIN → BT0")
+        expectEqual(ProfileMarker.decode(page: 0x07, usage: 0x7D), .selected(4), "K_PASTE → BT4")
+        expectEqual(ProfileMarker.decode(page: 0x07, usage: 0x7E), .cleared, "K_FIND → cleared")
+        expect(ProfileMarker.decode(page: 0x07, usage: 0x78) == nil, "below marker range → nil")
+        expect(ProfileMarker.decode(page: 0x07, usage: 0x7F) == nil, "above marker range → nil")
+        expect(ProfileMarker.decode(page: 0x0C, usage: 0x79) == nil, "non-keyboard page → nil")
+
+        // Scan the fixture: marker macros + bt_clr_hold, all on FUNC (3).
+        guard let keymap = fixtureKeymap else { return }
+        let actions = BTAction.scan(keymap)
+        expect(actions.contains { $0.kind == .select(0) && $0.layer == 3 }, "bt_sel_m0 found on FUNC")
+        expect(actions.contains { $0.kind == .select(1) && $0.layer == 3 }, "bt_sel_m1 found on FUNC")
+        expect(actions.contains { $0.kind == .clear && $0.layer == 3 }, "bt_clr_hold found on FUNC")
+
+        // Plain &bt bindings and non-BT bindings classify directly.
+        expectEqual(BTAction.classify(try! KeymapParser.interpret(token: "&bt BT_SEL 2")), .select(2),
+                    "plain BT_SEL classifies")
+        expectEqual(BTAction.classify(try! KeymapParser.interpret(token: "&bt BT_CLR")), .clear,
+                    "plain BT_CLR classifies")
+        expectEqual(BTAction.classify(try! KeymapParser.interpret(token: "&bt BT_NXT")), .other("BT_NXT"),
+                    "other bt command classifies")
+        expect(BTAction.classify(try! KeymapParser.interpret(token: "&some_macro")) == nil,
+               "non-BT opaque → nil")
+        expect(BTAction.classify(try! KeymapParser.interpret(token: "&kp A")) == nil,
+               "non-BT binding → nil")
+    }
+
     // MARK: - Editor (surgical replacement)
 
     private static func testEditor() {
@@ -749,6 +790,8 @@ enum SelfTest {
         expectEqual(CheatsheetGenerator.shortLabel(.sysReset), "RST", "reset label")
         expectEqual(CheatsheetGenerator.shortLabel(.opaque(behavior: "bt_clr_hold", params: ["0", "0"])),
                     "BTclr*", "custom hold label")
+        expectEqual(CheatsheetGenerator.shortLabel(.opaque(behavior: "bt_sel_m0", params: [])),
+                    "BT0", "bt marker macro label")
         expectEqual(CheatsheetGenerator.shortLabel(.opaque(behavior: "mystery", params: [])),
                     "mystery", "unknown opaque label")
 

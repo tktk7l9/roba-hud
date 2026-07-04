@@ -151,6 +151,9 @@ enum LabelProvider {
             return KeyLabel("RST")
         case .opaque(let behavior, _):
             if behavior == "bt_clr_hold" { return KeyLabel("", hold: "BT✕") }
+            if behavior.hasPrefix("bt_sel_m"), let n = Int(behavior.dropFirst("bt_sel_m".count)) {
+                return KeyLabel("BT\(n)")
+            }
             return KeyLabel(behavior)
         }
     }

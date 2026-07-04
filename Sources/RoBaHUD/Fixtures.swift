@@ -168,8 +168,8 @@ enum Fixtures {
             display-name = "FUNC";
             bindings = <
 &out OUT_TOG  &kp F7  &kp F8  &kp F9  &kp F10                                  &kp C_PREV     &kp C_PP       &kp C_NEXT    &kp C_MUTE     &bt_clr_hold 0 0
-&sys_reset    &kp F4  &kp F5  &kp F6  &kp F11  &trans         &trans     &kp C_VOL_DN   &kp C_VOL_UP   &kp LG(LS(N4))  &kp C_BRI_UP   &bt BT_SEL 1
-&trans        &kp F1  &kp F2  &kp F3  &kp F12  &trans         &trans     &kp LA(LEFT)   &kp LA(RIGHT)  &kp C_BRI_DN  &kp LC(LG(LS(N4)))   &bt BT_SEL 0
+&sys_reset    &kp F4  &kp F5  &kp F6  &kp F11  &trans         &trans     &kp C_VOL_DN   &kp C_VOL_UP   &kp LG(LS(N4))  &kp C_BRI_UP   &bt_sel_m1
+&trans        &kp F1  &kp F2  &kp F3  &kp F12  &trans         &trans     &kp LA(LEFT)   &kp LA(RIGHT)  &kp C_BRI_DN  &kp LC(LG(LS(N4)))   &bt_sel_m0
 &trans        &trans  &trans  &trans  &trans   &trans         &kp LCTRL  &trans                                                     &bootloader
             >;
         };
