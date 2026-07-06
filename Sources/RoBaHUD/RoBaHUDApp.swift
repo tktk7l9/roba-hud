@@ -65,8 +65,12 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.delegate = self
         panel.center()
         // setFrameAutosaveName restores the last frame if one was saved;
-        // center() above only matters on first launch.
-        panel.orderFrontRegardless()
+        // center() above only matters on first launch. Only show up front if
+        // roBa is already connected — observeDeviceConnection() takes over
+        // from here as the device connects/disconnects.
+        if store.deviceConnected && store.isActiveProfile {
+            panel.orderFrontRegardless()
+        }
         self.panel = panel
         self.hostingView = hosting
         batteryStatusItem = BatteryStatusItem(
@@ -83,6 +87,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
         observeOpacity()
         observePanelBehavior()
+        observeDeviceConnection()
     }
 
     func togglePanelVisibility() {
@@ -117,6 +122,33 @@ final class PanelController: NSObject, NSWindowDelegate {
                     }
                 }
                 self.observePanelBehavior()
+            }
+        }
+    }
+
+    /// Show the HUD only while roBa is connected *and* this Mac is the
+    /// active BT profile; hide it otherwise. Manual show/hide (⌥⌘K, close
+    /// button) still works meanwhile, but a state transition always wins.
+    ///
+    /// roBa keeps its BLE link (both HID and the battery GATT connection)
+    /// alive to every bonded host even while a different profile is active
+    /// — confirmed empirically: switching profiles away and back produces
+    /// no HID removal and no CoreBluetooth didDisconnectPeripheral at all.
+    /// So store.isActiveProfile is the real signal here, derived from live
+    /// HID traffic recency rather than connect/disconnect (see HUDStore).
+    private func observeDeviceConnection() {
+        withObservationTracking {
+            _ = store.deviceConnected
+            _ = store.isActiveProfile
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                guard let self, let panel = self.panel else { return }
+                if self.store.deviceConnected && self.store.isActiveProfile {
+                    panel.orderFrontRegardless()
+                } else {
+                    panel.orderOut(nil)
+                }
+                self.observeDeviceConnection()
             }
         }
     }

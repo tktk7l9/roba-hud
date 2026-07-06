@@ -29,6 +29,15 @@ final class HUDStore {
     }
     var hidState: HIDState = .off
     var deviceConnected = false
+    /// Whether this Mac is (believed to be) the currently active BT profile.
+    /// roBa keeps its BLE link to every bonded host alive even while a
+    /// different profile is active, so connect/disconnect can't tell us
+    /// this — only the live HID stream can. True the moment any report
+    /// arrives (including the bt_sel_mN marker, which fires the instant a
+    /// switch lands on us); false after `activityTimeout` of silence.
+    var isActiveProfile = true
+    private var lastHIDActivity = Date()
+    private let activityTimeout: TimeInterval = 45
 
     var opacity: Double = Prefs.opacity {
         didSet { Prefs.opacity = opacity }
@@ -112,6 +121,7 @@ final class HUDStore {
     private var engine: InferenceEngine?
     private var monitor: HIDMonitor?
     private var tickTimer: Timer?
+    private var activityTimer: Timer?
     private var fileWatcher: FileWatcher?
 
     private var pipeline: GitPipeline { GitPipeline(repoPath: Prefs.zmkConfigPath) }
@@ -191,6 +201,14 @@ final class HUDStore {
         m.start()
         monitor = m
         hidState = HIDMonitor.Access.current() == .granted ? .running : .permissionNeeded
+        activityTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.checkActivityTimeout() }
+        }
+    }
+
+    private func checkActivityTimeout() {
+        guard isActiveProfile, Date().timeIntervalSince(lastHIDActivity) > activityTimeout else { return }
+        isActiveProfile = false
     }
 
     /// After granting the permission in System Settings the TCC grant only
@@ -214,6 +232,10 @@ final class HUDStore {
     private func handleHID(_ event: HIDEvent) {
         if case .connection(let up) = event {
             deviceConnected = up
+            if !up { isActiveProfile = false }
+        } else {
+            lastHIDActivity = Date()
+            isActiveProfile = true
         }
         // Profile markers are ours alone — consume them before inference so
         // they never show up as highlights, stats or insights.

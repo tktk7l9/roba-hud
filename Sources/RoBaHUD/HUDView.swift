@@ -211,22 +211,27 @@ struct HUDView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 6) {
-            if let keymap = store.keymap {
-                ForEach(keymap.layers, id: \.index) { layer in
-                    layerPill(layer)
+        VStack(spacing: 6) {
+            HStack(spacing: 6) {
+                if let keymap = store.keymap {
+                    ForEach(keymap.layers, id: \.index) { layer in
+                        layerPill(layer)
+                    }
                 }
+                if store.pinnedLayer != nil {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                        .help("レイヤー固定中（推定停止）")
+                }
+                Spacer()
             }
-            if store.pinnedLayer != nil {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-                    .help("レイヤー固定中（推定停止）")
+            HStack(spacing: 6) {
+                Spacer()
+                BatteryChips(battery: store.battery)
+                connectionDot
+                gearMenu
             }
-            Spacer()
-            BatteryChips(battery: store.battery)
-            connectionDot
-            gearMenu
         }
         .padding(.horizontal, 10)
     }
