@@ -1,8 +1,10 @@
 import AppKit
 
 /// Floating, non-activating utility panel that stays above normal windows,
-/// follows all Spaces (including full-screen apps) and never steals focus
-/// from the app being typed into.
+/// follows all regular Spaces, and never steals focus from the app being
+/// typed into. It deliberately does *not* join full-screen Spaces — no
+/// `.fullScreenAuxiliary` — so it disappears whenever another app goes
+/// full-screen instead of floating over it.
 final class HUDPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
@@ -13,7 +15,7 @@ final class HUDPanel: NSPanel {
         )
         isFloatingPanel = true
         level = .floating
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        collectionBehavior = [.canJoinAllSpaces]
         titleVisibility = .hidden
         titlebarAppearsTransparent = true
         isMovableByWindowBackground = true
