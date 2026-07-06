@@ -63,10 +63,10 @@ final class PanelController: NSObject, NSWindowDelegate {
         let hosting = NSHostingView(rootView: HUDView(store: store))
         let panel = HUDPanel(contentView: hosting)
         panel.delegate = self
-        panel.center()
+        Self.positionAtScreenRightEdge(panel)
         // setFrameAutosaveName restores the last frame if one was saved;
-        // center() above only matters on first launch. Only show up front if
-        // roBa is already connected — observeDeviceConnection() takes over
+        // positioning above only matters on first launch. Only show up front
+        // if roBa is already connected — observeDeviceConnection() takes over
         // from here as the device connects/disconnects.
         if store.deviceConnected && store.isActiveProfile {
             panel.orderFrontRegardless()
@@ -88,6 +88,22 @@ final class PanelController: NSObject, NSWindowDelegate {
         observeOpacity()
         observePanelBehavior()
         observeDeviceConnection()
+    }
+
+    /// Default first-launch placement: top-right corner of the screen (rather
+    /// than dead-center), so the HUD sits out of the way of whatever's being
+    /// typed into.
+    private static func positionAtScreenRightEdge(_ panel: HUDPanel) {
+        guard let screen = NSScreen.main ?? NSScreen.screens.first else {
+            panel.center()
+            return
+        }
+        let visible = screen.visibleFrame
+        let margin: CGFloat = 24
+        var frame = panel.frame
+        frame.origin.x = visible.maxX - frame.width - margin
+        frame.origin.y = visible.maxY - frame.height - margin
+        panel.setFrame(frame, display: false)
     }
 
     func togglePanelVisibility() {

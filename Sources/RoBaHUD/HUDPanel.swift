@@ -6,7 +6,7 @@ import AppKit
 final class HUDPanel: NSPanel {
     init(contentView: NSView) {
         super.init(
-            contentRect: NSRect(x: 0, y: 0, width: 640, height: 300),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 300),
             styleMask: [.titled, .closable, .resizable, .fullSizeContentView, .nonactivatingPanel, .utilityWindow],
             backing: .buffered,
             defer: false
