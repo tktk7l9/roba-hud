@@ -8,9 +8,10 @@ final class HotKey {
     private var eventHandler: EventHandlerRef?
     private let action: () -> Void
 
-    /// Default binding: ⌥⌘K ("Keyboard").
+    /// Default binding: ⌘⇧K. Both modifiers sit on roBa's base layer (no
+    /// layer-hold needed, unlike Option which only lives on the NUM layer).
     init?(keyCode: UInt32 = UInt32(kVK_ANSI_K),
-          modifiers: UInt32 = UInt32(cmdKey | optionKey),
+          modifiers: UInt32 = UInt32(cmdKey | shiftKey),
           action: @escaping () -> Void) {
         self.action = action
 

@@ -81,7 +81,7 @@ final class PanelController: NSObject, NSWindowDelegate {
             isClickThrough: { [weak self] in self?.store.clickThrough ?? false },
             setClickThrough: { [weak self] on in self?.store.setClickThrough(on) }
         )
-        // ⌥⌘K: show/hide the HUD from anywhere (no TCC needed — Carbon hotkey).
+        // ⌘⇧K: show/hide the HUD from anywhere (no TCC needed — Carbon hotkey).
         hotKey = HotKey { [weak self] in
             MainActor.assumeIsolated { self?.togglePanelVisibility() }
         }

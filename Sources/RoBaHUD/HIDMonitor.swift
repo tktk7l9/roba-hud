@@ -79,13 +79,14 @@ final class HIDMonitor {
         self.manager = manager
         self.runLoop = CFRunLoopGetCurrent()
 
-        // Cast wide (any ZMK-default VID/PID, or anything named right) and
-        // filter precisely by product string in the matching callback.
-        let matching: [[String: Any]] = [
-            [kIOHIDProductKey as String: productName],
-            [kIOHIDVendorIDKey as String: 0x1D50, kIOHIDProductIDKey as String: 0x615E],
-        ]
-        IOHIDManagerSetDeviceMatchingMultiple(manager, matching as CFArray)
+        // Match by product string only. The previous extra VID/PID criterion
+        // (0x1D50/0x615E boxed as Int in an `Any` dictionary) failed to
+        // compare as a CFNumber against IOHIDManager's matching engine and
+        // degraded to matching *every* HID device on the system (internal
+        // keyboard/trackpad, other Bluetooth peripherals, ...). Opening that
+        // many devices at once starved report delivery for roBa itself.
+        let matching: [String: Any] = [kIOHIDProductKey as String: productName]
+        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
 
         let context = Unmanaged.passUnretained(self).toOpaque()
 
