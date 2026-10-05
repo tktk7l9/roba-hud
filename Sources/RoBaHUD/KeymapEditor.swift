@@ -49,9 +49,11 @@ enum KeymapEditor {
         // Flat token-list comparison: exactly one slot may differ, and it must
         // read back as the new binding. Catches count changes, collateral
         // edits and serialization mismatches in one shot.
-        let perLayer = keymap.layers[0].bindings.count
+        // Offset from the real per-layer counts: a hand-edited keymap with
+        // uneven layers must fail verification, not index out of range.
+        let offset = keymap.layers[..<layer].reduce(0) { $0 + $1.bindings.count }
         var expected = keymap.layers.flatMap { $0.bindings.map(\.raw) }
-        expected[layer * perLayer + position] = newBinding.dtsText
+        expected[offset + position] = newBinding.dtsText
         let actual = reparsed.layers.flatMap { $0.bindings.map(\.raw) }
         guard actual == expected,
               reparsed.layers[layer].bindings[position].binding == newBinding else {
