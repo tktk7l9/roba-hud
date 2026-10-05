@@ -53,7 +53,7 @@ enum BatteryForecast {
         return Estimate(ratePerDay: ratePerDay, daysLeft: daysLeft)
     }
 
-    /// "−4.2%/日 ・ 残り約12日" style summary (nil = まだ推定できない).
+    /// "−4.2%/日 ・ 残り約12日" style summary (nil = not enough history to estimate yet).
     static func summary(_ estimate: Estimate?) -> String? {
         guard let estimate else { return nil }
         let rate = String(format: "−%.1f%%/日", estimate.ratePerDay)

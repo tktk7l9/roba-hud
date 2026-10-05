@@ -425,7 +425,7 @@ final class HUDStore {
         await refreshDiff()
 
         pipelineState = .running("GitHub Actions のビルド待ち")
-        for _ in 0..<80 {                       // 80 × 15s ≒ 20分で打ち切り
+        for _ in 0..<80 {                       // give up after 80 × 15s ≈ 20 min
             if let run = await pipeline.findRun(sha: sha) {
                 if run.status == "completed" {
                     if run.conclusion == "success" {

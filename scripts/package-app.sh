@@ -36,7 +36,7 @@ if security find-identity -p codesigning 2>/dev/null | grep -q "$SIGN_ID"; then
     echo "==> codesign ($SIGN_ID — stable identity)"
     codesign --force --deep --sign "$SIGN_ID" "$APP"
 else
-    echo "==> codesign (ad-hoc — 毎ビルドで Input Monitoring 権限が剥がれます。scripts/create-signing-cert.sh を実行してください)"
+    echo "==> codesign (ad-hoc — every build drops the Input Monitoring grant; run scripts/create-signing-cert.sh)"
     codesign --force --deep --sign - "$APP"
 fi
 

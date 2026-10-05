@@ -211,7 +211,7 @@ enum CheatsheetCLI {
             let date = Date().formatted(.iso8601.year().month().day().dateSeparator(.dash))
             guard let updated = CheatsheetGenerator.regenerate(markdown: markdown, keymap: keymap,
                                                                geometry: geometry, date: date) else {
-                print("CHEATSHEET.md は最新です")
+                print("CHEATSHEET.md is up to date")
                 return 0
             }
             try Data(updated.utf8).write(to: url, options: .atomic)
@@ -237,7 +237,7 @@ enum ParseCheck {
                 print(String(format: "  L%d %-8s %d bindings%@",
                              layer.index, (layer.name as NSString).utf8String!,
                              layer.bindings.count,
-                             locked > 0 ? " (編集不可: \(locked))" : ""))
+                             locked > 0 ? " (not editable: \(locked))" : ""))
             }
             return 0
         } catch {
