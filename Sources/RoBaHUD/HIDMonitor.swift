@@ -223,7 +223,7 @@ enum HIDDump {
             }
         }
         monitor.onOpenFailure = { code in
-            print("IOHIDManagerOpen failed: 0x\(String(UInt32(bitPattern: code), radix: 16)) — Input Monitoring 権限を確認してください")
+            print("IOHIDManagerOpen failed: 0x\(String(UInt32(bitPattern: code), radix: 16)) — check the Input Monitoring permission")
         }
         monitor.start()
         CFRunLoopRun()

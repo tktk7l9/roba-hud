@@ -747,7 +747,7 @@ enum SelfTest {
         expect(BatteryForecast.estimate(series: [(at(0), 90), (at(0), 80)], now: at(0), minSpan: 0) == nil,
                "degenerate timestamps → nil")
 
-        // Below floor → 残り0日.
+        // Below floor → 0 days left.
         series = (0...12).map { (at(Double($0) * 2), 20 - $0) }   // ends at 8 (< floor)
         expectEqual(BatteryForecast.estimate(series: series, now: at(24))?.daysLeft, 0,
                     "below floor → 0 days")
