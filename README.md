@@ -53,6 +53,20 @@ swift run RoBaHUD --regen-cheatsheet  # CHEATSHEET.md の配置図を再生成
 | `zmkConfigPath` | `~/src/github.com/tktk7l9/zmk-config-roBa` | zmk-config リポジトリの場所 |
 | `opacity` | `0.95` | パネルの不透明度（ギアメニューからも変更可） |
 
+## 収集するデータと外部通信
+
+打鍵は **このMacの中だけ** に残る。アプリ自身はネットワーク通信を一切行わない（`URLSession` 不使用）。外に出るのは、ユーザーが「Commit & Push」を押したときに **自分の環境の `git` / `gh`** が zmk-config リポジトリへ push し、GitHub Actions のビルド成果物（UF2）を取得する操作だけで、打鍵データは含まれない。
+
+| ファイル（`~/Library/Application Support/RoBaHUD/`） | 中身 | 保持 |
+|---|---|---|
+| `stats.json` | レイヤー×キー位置ごとの打鍵回数（ヒートマップ用）。順序は持たない | リセットするまで |
+| `insights.json` | 日ごとの集計: レイヤー別回数・最前面アプリ（bundle id）別回数・**修飾キー付きショートカット**（⌘C など）の回数とアプリ別内訳・矢印/削除キーの連打長 | 90 日で自動削除 |
+| `battery-history.json` | 左右バッテリー残量の履歴 | 30 日 |
+
+修飾キーなしの通常の文字キーは、どの文字かを記録しない（レイヤー別・アプリ別の **回数** だけ）。いずれも打鍵の並びを保存しないため、入力した文章は復元できない。統計シートの「リセット」で消去できる。
+
+ファームウェアの取得は `gh run download` で、**自分の zmk-config リポジトリ**の、いま push したコミット SHA に一致する build.yml の実行からのみ行う（`~/Downloads/roba-firmware-<sha>/`）。認証は `gh auth` に委ね、アプリはトークンを持たない。
+
 ## 仕組みメモ
 
 - roBa は BLE 上で単一の IOHIDDevice（VID 0x1D50 / PID 0x615E は ZMK 既定値のため Product 文字列 "roBa" で識別）。左手側のキーも右手側（セントラル）経由で届く
