@@ -617,6 +617,13 @@ enum SelfTest {
 
         expect(GitPipeline.matchRun(json: json, sha: "ffff") == nil, "no match for unknown sha")
         expect(GitPipeline.matchRun(json: "not json", sha: "aaaa") == nil, "garbage JSON tolerated")
+
+        // The commit is limited to the managed files so unrelated staged
+        // changes stay staged instead of riding along in the keymap commit.
+        let commitArgs = GitPipeline.commitArguments(message: "-m tricky")
+        expectEqual(commitArgs, ["commit", "-m", "-m tricky", "--",
+                                 "config/roBa.keymap", "CHEATSHEET.md"],
+                    "commit argv ends with a pathspec of the managed files only")
     }
 
     // MARK: - Battery model
