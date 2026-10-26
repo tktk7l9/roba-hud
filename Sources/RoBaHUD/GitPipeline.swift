@@ -115,12 +115,19 @@ struct GitPipeline {
         let add = await git(["add", "--"] + Self.managedPaths)
         results.append(add)
         guard add.ok else { return results }
-        let commit = await git("commit", "-m", message)
+        let commit = await git(Self.commitArguments(message: message))
         results.append(commit)
         guard commit.ok else { return results }
         let push = await git("push")
         results.append(push)
         return results
+    }
+
+    /// `git commit` limited to the managed files. Without the pathspec, git
+    /// would also commit anything the user had already staged in the index
+    /// (unrelated work), even though the pipeline only reviewed the keymap.
+    static func commitArguments(message: String) -> [String] {
+        ["commit", "-m", message, "--"] + managedPaths
     }
 
     // MARK: - GitHub Actions
